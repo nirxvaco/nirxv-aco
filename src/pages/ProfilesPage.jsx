@@ -945,7 +945,8 @@ export default function ProfilesPage() {
           </div>
         </div>,
         document.body
-      )}
+       )}
     </div>
   )
 }
+
