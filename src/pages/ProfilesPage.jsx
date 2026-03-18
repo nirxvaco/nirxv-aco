@@ -292,15 +292,26 @@ export default function ProfilesPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [importLoading, setImportLoading] = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    const { data } = await supabase.from('profiles').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+const load = useCallback(async () => {
+  setLoading(true)
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+    
+    if (error) throw error
+    
     if (data) {
       const decrypted = await Promise.all(data.map(decryptProfile))
       setProfiles(decrypted)
     }
-    setLoading(false)
-  }, [user.id])
+  } catch (err) {
+    console.error('Load failed:', err)
+  }
+  setLoading(false)
+}, [user.id])
 
   useEffect(() => { load() }, [load])
 
@@ -442,15 +453,16 @@ export default function ProfilesPage() {
   }
 
   async function handleSave() {
-    // Run format validation first (fast, no async)
-    const formatErrors = validate(form)
-    if (Object.keys(formatErrors).length) {
-      setErrors(formatErrors)
-      return
-    }
+  // Run format validation first (fast, no async)
+  const formatErrors = validate(form)
+  if (Object.keys(formatErrors).length) {
+    setErrors(formatErrors)
+    return
+  }
 
-    // Run cross-profile uniqueness checks
-    setSaving(true)
+  // Run cross-profile uniqueness checks
+  setSaving(true)
+  try {
     const crossErrors = await crossValidate(form)
     if (Object.keys(crossErrors).length) {
       setErrors(crossErrors)
@@ -459,50 +471,30 @@ export default function ProfilesPage() {
     }
 
     const encrypted = await encryptProfile({ ...form, user_id: user.id })
+
     if (editingId) {
-      await supabase.from('profiles').update(encrypted).eq('id', editingId)
-      notifyDiscord('profile_edited', {
-        profile_name: form.profile_name,
-        fields_changed: [], // generic — could be extended later
-      })
+      const { error } = await supabase.from('profiles').update(encrypted).eq('id', editingId)
+      if (error) throw error
+      notifyDiscord('profile_edited', { profile_name: form.profile_name, fields_changed: [] })
     } else {
-      await supabase.from('profiles').insert(encrypted)
+      const { error } = await supabase.from('profiles').insert(encrypted)
+      if (error) throw error
       notifyDiscord('profile_added', {
         profile_name: form.profile_name,
-        email:        form.email,
-        postcode:     form.shipping_zip,
+        email: form.email,
+        postcode: form.shipping_zip,
       })
     }
+
     await load()
     closeModal()
+  } catch (err) {
+    console.error('Save failed:', err)
+    setErrors({ profile_name: `Save failed: ${err.message || 'Unknown error — check console'}` })
+  } finally {
     setSaving(false)
   }
-
-  function openNew() {
-    setForm(EMPTY_PROFILE); setEditingId(null); setErrors({}); setModalOpen(true)
-  }
-
-  function openEdit(p) {
-    setForm(p); setEditingId(p.id); setErrors({}); setModalOpen(true)
-  }
-
-  function closeModal() {
-    setModalOpen(false); setEditingId(null); setForm(EMPTY_PROFILE); setErrors({})
-  }
-
-  async function handleDelete(id) {
-    await supabase.from('profiles').delete().eq('id', id)
-    setDeleteConfirm(null)
-    await load()
-  }
-
-  function toggleReveal(id) {
-    setRevealedCards(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
+}
 
   // CSV Export
   function exportCSV(profilesArr) {
