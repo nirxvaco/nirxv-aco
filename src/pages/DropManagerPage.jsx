@@ -73,6 +73,23 @@ export default function DropManagerPage() {
       .select('*')
       .eq('drop_id', dropId)
       .order('submitted_at', { ascending: false })
+
+    // Enrich with latest usernames from user_profiles
+    if (data && data.length > 0) {
+      const userIds = [...new Set(data.map(s => s.user_id))]
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, username')
+        .in('id', userIds)
+      if (profiles) {
+        setUsers(prev => {
+          const next = { ...prev }
+          profiles.forEach(p => { next[p.id] = p.username })
+          return next
+        })
+      }
+    }
+
     setSubmissions(s => ({ ...s, [dropId]: data || [] }))
     setLoadingSubs(s => ({ ...s, [dropId]: false }))
   }

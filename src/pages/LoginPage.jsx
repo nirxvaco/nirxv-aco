@@ -99,7 +99,11 @@ export default function LoginPage() {
             {mode === 'signup' && (
               <div>
                 <label className="vault-label">Username</label>
-                <input className="vault-input" placeholder="your_handle" value={username} onChange={e => setUsername(e.target.value)} />
+                <input className="vault-input" placeholder="Same as your Discord username"
+                  value={username} onChange={e => setUsername(e.target.value)} />
+                <p className="text-vault-muted text-xs font-mono mt-1">
+                  Use your exact Discord username so we can identify you
+                </p>
               </div>
             )}
             <div>
