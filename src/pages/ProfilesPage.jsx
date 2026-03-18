@@ -263,19 +263,18 @@ const EMPTY_PROFILE = {
   profile_name: '', email: '', phone: '',
   shipping_first_name: '', shipping_last_name: '', shipping_address: '',
   shipping_address_2: '', shipping_city: '', shipping_zip: '',
-  shipping_state: '', shipping_country: '',
+  shipping_state: '', shipping_country: 'GB',
   billing_same_as_shipping: true,
   billing_first_name: '', billing_last_name: '', billing_address: '',
   billing_address_2: '', billing_city: '', billing_zip: '',
-  billing_state: '', billing_country: '',
+  billing_state: '', billing_country: 'GB',
   card_holder_name: '', card_type: 'Visa', card_number: '',
   card_month: '', card_year: '', card_cvv: '',
-  one_checkout_per_profile: true,  // always true by default
+  one_checkout_per_profile: true,
   is_virtual_card: false,
 }
 
 const CARD_TYPES = ['Visa', 'Mastercard', 'Amex', 'Discover', 'Other']
-const COUNTRIES = ['GB', 'US', 'CA', 'AU', 'DE', 'FR', 'IT', 'ES', 'NL', 'Other']
 
 export default function ProfilesPage() {
   const { user } = useAuth()
@@ -316,7 +315,6 @@ export default function ProfilesPage() {
     if (!f.shipping_address.trim()) e.shipping_address = 'Required'
     if (!f.shipping_city.trim()) e.shipping_city = 'Required'
     if (!f.shipping_zip.trim()) e.shipping_zip = 'Required'
-    if (!f.shipping_country.trim()) e.shipping_country = 'Required'
     if (!f.card_holder_name.trim()) e.card_holder_name = 'Required'
 
     // ── Email ─────────────────────────────────────────────────────────────
@@ -820,7 +818,12 @@ export default function ProfilesPage() {
                     {errors.shipping_zip && <p className="text-vault-red text-xs mt-1 font-mono">{errors.shipping_zip}</p>}
                   </div>
                   <Field label="State / County" name="shipping_state" form={form} errors={errors} setForm={setForm} />
-                  <Field label="Country" name="shipping_country" required options={COUNTRIES} form={form} errors={errors} setForm={setForm} />
+                  <div>
+                    <label className="vault-label">Country</label>
+                    <div className="vault-input bg-vault-border/50 text-vault-text-dim cursor-not-allowed flex items-center gap-2">
+                      <span className="text-vault-text font-mono">🇬🇧 GB — United Kingdom</span>
+                    </div>
+                  </div>
                 </div>
               </section>
 
@@ -850,7 +853,12 @@ export default function ProfilesPage() {
                     <Field label="Billing City" name="billing_city" form={form} errors={errors} setForm={setForm} />
                     <Field label="Billing ZIP" name="billing_zip" form={form} errors={errors} setForm={setForm} />
                     <Field label="Billing State" name="billing_state" form={form} errors={errors} setForm={setForm} />
-                    <Field label="Billing Country" name="billing_country" options={COUNTRIES} form={form} errors={errors} setForm={setForm} />
+                    <div>
+                      <label className="vault-label">Billing Country</label>
+                      <div className="vault-input bg-vault-border/50 text-vault-text-dim cursor-not-allowed flex items-center gap-2">
+                        <span className="text-vault-text font-mono">🇬🇧 GB — United Kingdom</span>
+                      </div>
+                    </div>
                   </div>
                 )}}
               </section>
