@@ -608,7 +608,7 @@ const load = useCallback(async () => {
           <button className="vault-btn-ghost" onClick={() => exportCSV(profiles)} disabled={!profiles.length}>
             <Download className="w-4 h-4" /> Export CSV
           </button>
-          <button className="vault-btn-primary" onClick={openNew}>
+          <button className="vault-btn-primary" onClick={() => openNew()}>
             <Plus className="w-4 h-4" /> New Profile
           </button>
         </div>
@@ -844,7 +844,7 @@ const load = useCallback(async () => {
                     <Field label="Billing State" name="billing_state" form={form} errors={errors} setForm={setForm} />
                     <Field label="Billing Country" name="billing_country" options={COUNTRIES} form={form} errors={errors} setForm={setForm} />
                   </div>
-                )}
+                )}=
               </section>
 
               {/* Card */}
