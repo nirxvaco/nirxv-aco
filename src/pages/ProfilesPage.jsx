@@ -292,26 +292,15 @@ export default function ProfilesPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [importLoading, setImportLoading] = useState(false)
 
-const load = useCallback(async () => {
-  setLoading(true)
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-    
-    if (error) throw error
-    
+  const load = useCallback(async () => {
+    setLoading(true)
+    const { data } = await supabase.from('profiles').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
     if (data) {
       const decrypted = await Promise.all(data.map(decryptProfile))
       setProfiles(decrypted)
     }
-  } catch (err) {
-    console.error('Load failed:', err)
-  }
-  setLoading(false)
-}, [user.id])
+    setLoading(false)
+  }, [user.id])
 
   useEffect(() => { load() }, [load])
 
@@ -453,16 +442,15 @@ const load = useCallback(async () => {
   }
 
   async function handleSave() {
-  // Run format validation first (fast, no async)
-  const formatErrors = validate(form)
-  if (Object.keys(formatErrors).length) {
-    setErrors(formatErrors)
-    return
-  }
+    // Run format validation first (fast, no async)
+    const formatErrors = validate(form)
+    if (Object.keys(formatErrors).length) {
+      setErrors(formatErrors)
+      return
+    }
 
-  // Run cross-profile uniqueness checks
-  setSaving(true)
-  try {
+    // Run cross-profile uniqueness checks
+    setSaving(true)
     const crossErrors = await crossValidate(form)
     if (Object.keys(crossErrors).length) {
       setErrors(crossErrors)
@@ -471,30 +459,50 @@ const load = useCallback(async () => {
     }
 
     const encrypted = await encryptProfile({ ...form, user_id: user.id })
-
     if (editingId) {
-      const { error } = await supabase.from('profiles').update(encrypted).eq('id', editingId)
-      if (error) throw error
-      notifyDiscord('profile_edited', { profile_name: form.profile_name, fields_changed: [] })
+      await supabase.from('profiles').update(encrypted).eq('id', editingId)
+      notifyDiscord('profile_edited', {
+        profile_name: form.profile_name,
+        fields_changed: [], // generic — could be extended later
+      })
     } else {
-      const { error } = await supabase.from('profiles').insert(encrypted)
-      if (error) throw error
+      await supabase.from('profiles').insert(encrypted)
       notifyDiscord('profile_added', {
         profile_name: form.profile_name,
-        email: form.email,
-        postcode: form.shipping_zip,
+        email:        form.email,
+        postcode:     form.shipping_zip,
       })
     }
-
     await load()
     closeModal()
-  } catch (err) {
-    console.error('Save failed:', err)
-    setErrors({ profile_name: `Save failed: ${err.message || 'Unknown error — check console'}` })
-  } finally {
     setSaving(false)
   }
-}
+
+  function openNew() {
+    setForm(EMPTY_PROFILE); setEditingId(null); setErrors({}); setModalOpen(true)
+  }
+
+  function openEdit(p) {
+    setForm(p); setEditingId(p.id); setErrors({}); setModalOpen(true)
+  }
+
+  function closeModal() {
+    setModalOpen(false); setEditingId(null); setForm(EMPTY_PROFILE); setErrors({})
+  }
+
+  async function handleDelete(id) {
+    await supabase.from('profiles').delete().eq('id', id)
+    setDeleteConfirm(null)
+    await load()
+  }
+
+  function toggleReveal(id) {
+    setRevealedCards(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
 
   // CSV Export
   function exportCSV(profilesArr) {
@@ -608,7 +616,7 @@ const load = useCallback(async () => {
           <button className="vault-btn-ghost" onClick={() => exportCSV(profiles)} disabled={!profiles.length}>
             <Download className="w-4 h-4" /> Export CSV
           </button>
-          <button className="vault-btn-primary" onClick={() => openNew()}>
+          <button className="vault-btn-primary" onClick={openNew}>
             <Plus className="w-4 h-4" /> New Profile
           </button>
         </div>
@@ -844,7 +852,7 @@ const load = useCallback(async () => {
                     <Field label="Billing State" name="billing_state" form={form} errors={errors} setForm={setForm} />
                     <Field label="Billing Country" name="billing_country" options={COUNTRIES} form={form} errors={errors} setForm={setForm} />
                   </div>
-                )}=
+                )}}
               </section>
 
               {/* Card */}
@@ -937,8 +945,7 @@ const load = useCallback(async () => {
           </div>
         </div>,
         document.body
-       )}
+      )}
     </div>
   )
 }
-
