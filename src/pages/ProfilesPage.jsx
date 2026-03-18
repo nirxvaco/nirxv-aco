@@ -860,7 +860,7 @@ export default function ProfilesPage() {
                       </div>
                     </div>
                   </div>
-                )}}
+                )}
               </section>
 
               {/* Card */}

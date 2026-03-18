@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth'
 import {
   Package, Plus, X, Save, Trash2, ChevronDown, ChevronUp,
   Users, Download, ExternalLink, RefreshCw, BookOpen,
-  CheckCircle, Clock, AlertCircle, Pencil
+  CheckCircle, Clock, AlertCircle, Pencil, Copy, Check
 } from 'lucide-react'
 import { format } from 'date-fns'
 import Papa from 'papaparse'
@@ -32,6 +32,7 @@ export default function DropManagerPage() {
   const [loading, setLoading]           = useState(true)
   const [expandedDrop, setExpandedDrop] = useState(null)
   const [loadingSubs, setLoadingSubs]   = useState({})
+  const [copied, setCopied]             = useState(null)
 
   // Drop modal
   const [dropModal, setDropModal]       = useState(false)
@@ -42,6 +43,7 @@ export default function DropManagerPage() {
   // Item builder inside form
   const [newItemKey, setNewItemKey]     = useState('')
   const [newItemName, setNewItemName]   = useState('')
+  const [newItemPid, setNewItemPid]     = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -126,9 +128,9 @@ export default function DropManagerPage() {
     if (!newItemKey.trim()) return
     setDropForm(f => ({
       ...f,
-      items: [...(f.items || []), { key: newItemKey.trim().toUpperCase(), name: newItemName.trim() }]
+      items: [...(f.items || []), { key: newItemKey.trim().toUpperCase(), name: newItemName.trim(), pid: newItemPid.trim() }]
     }))
-    setNewItemKey(''); setNewItemName('')
+    setNewItemKey(''); setNewItemName(''); setNewItemPid('')
   }
 
   function removeItem(i) {
@@ -274,12 +276,44 @@ export default function DropManagerPage() {
                         className="vault-btn-ghost text-xs px-2.5 py-1.5">
                         <RefreshCw className="w-3 h-3" /> Refresh
                       </button>
-                      {subs.length > 0 && (
-                        <button onClick={() => exportSubmissions(drop)}
-                          className="vault-btn-ghost text-xs px-2.5 py-1.5">
-                          <Download className="w-3 h-3" /> Export CSV
-                        </button>
-                      )}
+                      {subs.length > 0 && (() => {
+                        // Build all PIDs string for all submissions
+                        const allLines = subs.flatMap(sub => {
+                          const profileNames  = JSON.parse(sub.profile_names || '[]')
+                          const selectedItems = JSON.parse(sub.selected_items || '[]')
+                          const dropItems     = drop.items || []
+                          const relevantItems = selectedItems.length > 0
+                            ? dropItems.filter(item => selectedItems.includes(item.key))
+                            : dropItems
+                          const pids = relevantItems.map(item => item.pid).filter(Boolean)
+                          const pidString = pids.join(',')
+                          const username = users[sub.user_id] || sub.user_id
+                          return profileNames.map(pn =>
+                            pidString ? `${username} — ${pn} — ${pidString}` : `${username} — ${pn}`
+                          )
+                        })
+                        return (
+                          <>
+                            {allLines.some(l => l.includes('—')) && (
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(allLines.join('\n'))
+                                  setCopied(`all-${drop.id}`)
+                                  setTimeout(() => setCopied(null), 2000)
+                                }}
+                                className="vault-btn-ghost text-xs px-2.5 py-1.5 text-vault-gold border-vault-gold/30 hover:bg-vault-gold/10">
+                                {copied === `all-${drop.id}`
+                                  ? <><Check className="w-3 h-3 text-vault-green" />Copied!</>
+                                  : <><Copy className="w-3 h-3" />Copy All PIDs</>}
+                              </button>
+                            )}
+                            <button onClick={() => exportSubmissions(drop)}
+                              className="vault-btn-ghost text-xs px-2.5 py-1.5">
+                              <Download className="w-3 h-3" /> Export CSV
+                            </button>
+                          </>
+                        )
+                      })()}
                     </div>
 
                     {loadingSubs[drop.id] ? (
@@ -293,17 +327,35 @@ export default function DropManagerPage() {
                         {subs.map(sub => {
                           const profileNames  = JSON.parse(sub.profile_names || '[]')
                           const selectedItems = JSON.parse(sub.selected_items || '[]')
+                          const dropItems     = drop.items || []
+
+                          // Build PID string — if they selected specific items use those PIDs,
+                          // otherwise use all item PIDs
+                          const relevantItems = selectedItems.length > 0
+                            ? dropItems.filter(item => selectedItems.includes(item.key))
+                            : dropItems
+                          const pids = relevantItems.map(item => item.pid).filter(Boolean)
+                          const pidString = pids.join(',')
+
+                          // Format per profile: Username — ProfileName — PIDs
+                          const username = users[sub.user_id] || sub.user_id
+                          const copyLines = profileNames.map(pn =>
+                            pidString
+                              ? `${username} — ${pn} — ${pidString}`
+                              : `${username} — ${pn}`
+                          ).join('\n')
+
+                          const copyKey = sub.id
+
                           return (
                             <div key={sub.id} className="bg-vault-bg rounded-xl px-3 py-2.5 border border-vault-border">
-                              <div className="flex items-center gap-3 flex-wrap">
+                              <div className="flex items-start gap-3 flex-wrap">
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-display text-vault-text">
-                                    {users[sub.user_id] || sub.user_id}
+                                    {username}
                                   </p>
                                   <p className="text-xs font-mono text-vault-text-dim mt-0.5">
-                                    {profileNames.length > 0
-                                      ? profileNames.join(', ')
-                                      : 'No profiles named'}
+                                    {profileNames.length > 0 ? profileNames.join(', ') : 'No profiles'}
                                   </p>
                                   {selectedItems.length > 0 && (
                                     <p className="text-xs font-mono text-vault-accent mt-0.5">
@@ -314,6 +366,27 @@ export default function DropManagerPage() {
                                     <p className="text-xs font-mono text-vault-gold mt-0.5">
                                       Note: {sub.notes}
                                     </p>
+                                  )}
+
+                                  {/* PID copy string — admin only */}
+                                  {pids.length > 0 && (
+                                    <div className="mt-2 p-2 bg-vault-bg rounded-lg border border-vault-gold/20">
+                                      <div className="flex items-center justify-between gap-2 mb-1">
+                                        <p className="text-[10px] font-mono text-vault-gold uppercase tracking-widest">PIDs</p>
+                                        <button
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(copyLines)
+                                            setCopied(copyKey)
+                                            setTimeout(() => setCopied(null), 2000)
+                                          }}
+                                          className="flex items-center gap-1 text-[10px] font-mono text-vault-gold hover:text-vault-text transition-colors">
+                                          {copied === copyKey
+                                            ? <><Check className="w-3 h-3 text-vault-green" /><span className="text-vault-green">Copied!</span></>
+                                            : <><Copy className="w-3 h-3" />Copy</>}
+                                        </button>
+                                      </div>
+                                      <p className="font-mono text-[11px] text-vault-text-dim break-all">{pidString}</p>
+                                    </div>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
@@ -413,29 +486,42 @@ export default function DropManagerPage() {
                 <div className="space-y-1.5 mb-2">
                   {(dropForm.items || []).map((item, i) => (
                     <div key={i} className="flex items-center gap-2 bg-vault-bg rounded-lg px-3 py-2 border border-vault-border">
-                      <span className="font-mono text-vault-accent text-sm font-bold">{item.key}</span>
-                      {item.name && <span className="text-vault-text-dim text-sm">— {item.name}</span>}
+                      <span className="font-mono text-vault-accent text-sm font-bold shrink-0">{item.key}</span>
+                      {item.name && <span className="text-vault-text-dim text-sm">{item.name}</span>}
+                      {item.pid && (
+                        <span className="font-mono text-vault-gold text-xs bg-vault-gold/10 border border-vault-gold/20 px-2 py-0.5 rounded ml-1">
+                          {item.pid}
+                        </span>
+                      )}
                       <button onClick={() => removeItem(i)}
-                        className="ml-auto text-vault-muted hover:text-vault-red transition-colors">
+                        className="ml-auto text-vault-muted hover:text-vault-red transition-colors shrink-0">
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ))}
                 </div>
-                <div className="flex gap-2">
-                  <input className="vault-input w-20 font-mono uppercase text-center"
-                    placeholder="A"
-                    value={newItemKey}
-                    maxLength={3}
-                    onChange={e => setNewItemKey(e.target.value.toUpperCase())} />
-                  <input className="vault-input flex-1"
-                    placeholder="Item name (optional)"
-                    value={newItemName}
-                    onChange={e => setNewItemName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && addItem()} />
-                  <button type="button" onClick={addItem} className="vault-btn-ghost px-3">
-                    <Plus className="w-4 h-4" />
-                  </button>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input className="vault-input w-16 font-mono uppercase text-center text-sm"
+                      placeholder="A"
+                      value={newItemKey}
+                      maxLength={3}
+                      onChange={e => setNewItemKey(e.target.value.toUpperCase())} />
+                    <input className="vault-input flex-1 text-sm"
+                      placeholder="Item name (e.g. ETB)"
+                      value={newItemName}
+                      onChange={e => setNewItemName(e.target.value)} />
+                  </div>
+                  <div className="flex gap-2">
+                    <input className="vault-input flex-1 font-mono text-sm text-vault-gold"
+                      placeholder="PID (e.g. 101-2311-101) — admin only, not shown to members"
+                      value={newItemPid}
+                      onChange={e => setNewItemPid(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addItem()} />
+                    <button type="button" onClick={addItem} className="vault-btn-ghost px-3 shrink-0">
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
