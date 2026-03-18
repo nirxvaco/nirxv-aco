@@ -24,7 +24,6 @@ const ORDER_STATUSES = {
 }
 
 const PKC_ORDER_URL = 'https://www.pokemoncenter.com/en-gb/orders?srsltid='
-const EMPTY_DROP = { drop_name: '', drop_date: '', cancellation_date: '', release_date: '', status: 'active', notes: '' }
 const EMPTY_ORDER = { profile_id: '', order_number: '', status: 'active', pas_amount: '', pas_paid: false, notes: '' }
 
 export default function OrderTrackingPage() {
@@ -39,11 +38,11 @@ export default function OrderTrackingPage() {
   const [allProfiles, setAllProfiles]   = useState([])
   const [admins, setAdmins]             = useState([])
   const [pasRevenue, setPasRevenue]     = useState([])
+  const [managerDrops, setManagerDrops] = useState([]) // drops from drop manager
 
   // Modals
   const [dropModal, setDropModal]       = useState(false)
-  const [dropForm, setDropForm]         = useState(EMPTY_DROP)
-  const [editDropId, setEditDropId]     = useState(null)
+  const [selectedManagerDrop, setSelectedManagerDrop] = useState('')
   const [savingDrop, setSavingDrop]     = useState(false)
 
   const [orderModal, setOrderModal]     = useState(false)
@@ -71,29 +70,59 @@ export default function OrderTrackingPage() {
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
-    // Load all profiles for the profile picker
     async function loadProfiles() {
       const { data } = await supabase.from('profiles').select('id, profile_name, shipping_zip, user_id, assigned_admin')
       if (data) {
-        const decrypted = await Promise.all(data.map(async p => {
-          const d = await decryptProfile(p)
-          return d
-        }))
+        const decrypted = await Promise.all(data.map(decryptProfile))
         setAllProfiles(decrypted)
       }
     }
-    // Load admins for PAS split
     async function loadAdmins() {
       const { data } = await supabase.from('user_profiles').select('id, username').eq('role', 'admin')
       setAdmins(data || [])
     }
-    // Load PAS revenue
     async function loadPasRevenue() {
       const { data } = await supabase.from('pas_revenue').select('*, from_profile:from_admin(username), to_profile:to_admin(username)').order('created_at', { ascending: false })
       setPasRevenue(data || [])
     }
-    loadProfiles(); loadAdmins(); loadPasRevenue()
+    async function loadManagerDrops() {
+      const { data } = await supabase.from('drops').select('id, name, site, drop_date, status').order('created_at', { ascending: false })
+      setManagerDrops(data || [])
+    }
+    loadProfiles(); loadAdmins(); loadPasRevenue(); loadManagerDrops()
   }, [])
+
+  async function loadOrdersForDrop(dropId) {
+    setLoadingOrders(s => ({ ...s, [dropId]: true }))
+    const { data } = await supabase.from('drop_orders').select('*').eq('drop_id', dropId).order('created_at', { ascending: true })
+    setDropOrders(s => ({ ...s, [dropId]: data || [] }))
+    setLoadingOrders(s => ({ ...s, [dropId]: false }))
+  }
+
+  function toggleDrop(dropId) {
+    if (expandedDrop === dropId) { setExpandedDrop(null); return }
+    setExpandedDrop(dropId)
+    if (!dropOrders[dropId]) loadOrdersForDrop(dropId)
+  }
+
+  // ── Drop CRUD — import from Drop Manager instead of creating new ────────
+  async function importDrop() {
+    if (!selectedManagerDrop) return
+    setSavingDrop(true)
+    const source = managerDrops.find(d => d.id === selectedManagerDrop)
+    if (source) {
+      await supabase.from('order_tracking').insert({
+        drop_name: source.name,
+        drop_date: source.drop_date || null,
+        status: 'active',
+        created_by: user.id,
+      })
+    }
+    await load()
+    setDropModal(false)
+    setSelectedManagerDrop('')
+    setSavingDrop(false)
+  }
 
   async function loadOrdersForDrop(dropId) {
     setLoadingOrders(s => ({ ...s, [dropId]: true }))
@@ -130,8 +159,7 @@ export default function OrderTrackingPage() {
     await load()
   }
 
-  function openEditDrop(drop) { setDropForm(drop); setEditDropId(drop.id); setDropModal(true) }
-  function closeDropModal()   { setDropModal(false); setDropForm(EMPTY_DROP); setEditDropId(null) }
+  function closeDropModal() { setDropModal(false); setSelectedManagerDrop('') }
 
   // ── Order CRUD ─────────────────────────────────────────────────────────
   function openNewOrder(dropId) {
@@ -263,7 +291,7 @@ export default function OrderTrackingPage() {
             <ArrowLeftRight className="w-4 h-4" /> PAS Split
           </button>
           <button className="vault-btn-primary" onClick={() => setDropModal(true)}>
-            <Plus className="w-4 h-4" /> New Drop
+            <Plus className="w-4 h-4" /> Import Drop
           </button>
         </div>
       </div>
@@ -349,9 +377,6 @@ export default function OrderTrackingPage() {
                       }}>
                       {Object.entries(DROP_STATUSES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                     </select>
-                    <button onClick={() => openEditDrop(drop)} className="p-1.5 text-vault-muted hover:text-vault-accent rounded hover:bg-vault-accent/10 transition-all">
-                      <Save className="w-4 h-4" />
-                    </button>
                     <button onClick={() => deleteDrop(drop.id)} className="p-1.5 text-vault-muted hover:text-vault-red rounded hover:bg-vault-red/10 transition-all">
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -508,42 +533,41 @@ export default function OrderTrackingPage() {
         </div>
       )}
 
-      {/* NEW DROP MODAL */}
+      {/* IMPORT DROP MODAL */}
       {dropModal && createPortal(
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="vault-card max-w-md w-full flex flex-col animate-fade-in" style={{ maxHeight: '90vh' }}>
-            <div className="flex items-center justify-between mb-5 shrink-0">
-              <h2 className="font-display text-2xl text-vault-accent neon-cyan">{editDropId ? 'EDIT DROP' : 'NEW DROP'}</h2>
+          <div className="vault-card max-w-md w-full animate-fade-in">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-display text-2xl text-vault-accent neon-cyan">IMPORT DROP</h2>
               <button onClick={closeDropModal}><X className="w-5 h-5 text-vault-muted" /></button>
             </div>
-            <div className="overflow-y-auto flex-1 pr-1 space-y-3">
-              <div><label className="vault-label">Drop Name *</label>
-                <input className="vault-input" placeholder="e.g. Chaos Rising Preorder" value={dropForm.drop_name} onChange={e => setDropForm(f => ({ ...f, drop_name: e.target.value }))} />
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div><label className="vault-label">Drop Date</label>
-                  <input className="vault-input" type="date" value={dropForm.drop_date} onChange={e => setDropForm(f => ({ ...f, drop_date: e.target.value }))} />
-                </div>
-                <div><label className="vault-label">PAS Due Date</label>
-                  <input className="vault-input" type="date" value={dropForm.cancellation_date} onChange={e => setDropForm(f => ({ ...f, cancellation_date: e.target.value }))} />
-                </div>
-                <div><label className="vault-label">Release Date</label>
-                  <input className="vault-input" type="date" value={dropForm.release_date} onChange={e => setDropForm(f => ({ ...f, release_date: e.target.value }))} />
-                </div>
-              </div>
-              <div><label className="vault-label">Status</label>
-                <select className="vault-input" value={dropForm.status} onChange={e => setDropForm(f => ({ ...f, status: e.target.value }))}>
-                  {Object.entries(DROP_STATUSES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            <div className="space-y-3">
+              <p className="text-vault-text-dim text-sm font-body">
+                Select a drop from Drop Manager to track orders for it.
+              </p>
+              <div>
+                <label className="vault-label">Select Drop</label>
+                <select className="vault-input" value={selectedManagerDrop}
+                  onChange={e => setSelectedManagerDrop(e.target.value)}>
+                  <option value="">— Choose a drop —</option>
+                  {managerDrops.map(d => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} {d.site ? `(${d.site})` : ''} {d.drop_date ? `— ${d.drop_date}` : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
-              <div><label className="vault-label">Notes</label>
-                <input className="vault-input" placeholder="e.g. PKC preorder, charge PAS at cancellations" value={dropForm.notes} onChange={e => setDropForm(f => ({ ...f, notes: e.target.value }))} />
-              </div>
+              {managerDrops.length === 0 && (
+                <p className="text-vault-muted text-xs font-mono">
+                  No drops in Drop Manager yet — create one there first.
+                </p>
+              )}
             </div>
-            <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-vault-border shrink-0">
+            <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-vault-border">
               <button className="vault-btn-ghost" onClick={closeDropModal}>Cancel</button>
-              <button className="vault-btn-primary" onClick={saveDrop} disabled={savingDrop}>
-                <Save className="w-4 h-4" />{savingDrop ? 'Saving...' : editDropId ? 'Save' : 'Create Drop'}
+              <button className="vault-btn-primary" onClick={importDrop}
+                disabled={savingDrop || !selectedManagerDrop}>
+                <Plus className="w-4 h-4" />{savingDrop ? 'Importing...' : 'Import Drop'}
               </button>
             </div>
           </div>
@@ -559,7 +583,7 @@ export default function OrderTrackingPage() {
               <h2 className="font-display text-2xl text-vault-accent neon-cyan">{editOrderId ? 'EDIT ORDER' : 'ADD ORDER'}</h2>
               <button onClick={closeOrderModal}><X className="w-5 h-5 text-vault-muted" /></button>
             </div>
-            <div className="overflow-y-auto flex-1 pr-1 space-y-3">
+            <div className="overflow-y-auto overflow-x-hidden flex-1 pr-1 space-y-3">
 
               {/* Profile picker — pulls postcode automatically */}
               <div>

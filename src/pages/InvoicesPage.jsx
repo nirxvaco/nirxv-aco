@@ -266,7 +266,7 @@ export default function InvoicesPage() {
             const isUnpaid = inv.status !== 'paid'
             return (
               <div key={inv.id} className="vault-card hover:border-vault-accent/30 transition-colors">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-vault-surface border border-vault-border flex items-center justify-center shrink-0">
                     <FileText className="w-5 h-5 text-vault-text-dim" />
                   </div>
@@ -286,25 +286,27 @@ export default function InvoicesPage() {
                       {inv.due_date ? `Due ${format(new Date(inv.due_date), 'dd MMM yyyy')}` : 'No due date'}{inv.notes ? ` · ${inv.notes}` : ''}
                     </p>
                   </div>
-                  <span className={`vault-badge border ${s.color} hidden sm:inline-flex`}><Icon className="w-3 h-3" />{s.label}</span>
-                  <p className="font-display font-bold text-vault-text whitespace-nowrap">{inv.currency} {parseFloat(inv.amount).toFixed(2)}</p>
-                  <div className="flex gap-1 items-center">
-                    {isAdmin ? (
-                      <>
-                        <button onClick={() => adminToggleStatus(inv)} className="p-2 text-vault-muted hover:text-vault-green rounded-lg hover:bg-vault-green/10 transition-all" title="Cycle status"><CheckCircle className="w-4 h-4" /></button>
-                        <button onClick={() => openEdit(inv)} className="p-2 text-vault-muted hover:text-vault-accent rounded-lg hover:bg-vault-accent/10 transition-all"><Save className="w-4 h-4" /></button>
-                        <button onClick={() => del(inv.id)} className="p-2 text-vault-muted hover:text-vault-red rounded-lg hover:bg-vault-red/10 transition-all"><Trash2 className="w-4 h-4" /></button>
-                      </>
-                    ) : (
-                      <>
-                        {isUnpaid && (
-                          <button onClick={() => setPayModal(inv)} className="vault-btn-primary text-xs px-3 py-2">
-                            <ExternalLink className="w-3.5 h-3.5" /> Pay Now
-                          </button>
-                        )}
-                        {!isUnpaid && <span className="vault-badge bg-vault-green/10 text-vault-green border border-vault-green/20"><CheckCircle className="w-3 h-3" /> Paid</span>}
-                      </>
-                    )}
+                  <div className="flex items-center gap-2 ml-auto flex-wrap">
+                    <span className={`vault-badge border ${s.color}`}><Icon className="w-3 h-3" />{s.label}</span>
+                    <p className="font-display font-bold text-vault-text whitespace-nowrap">{inv.currency} {parseFloat(inv.amount).toFixed(2)}</p>
+                    <div className="flex gap-1 items-center">
+                      {isAdmin ? (
+                        <>
+                          <button onClick={() => adminToggleStatus(inv)} className="p-2 text-vault-muted hover:text-vault-green rounded-lg hover:bg-vault-green/10 transition-all" title="Cycle status"><CheckCircle className="w-4 h-4" /></button>
+                          <button onClick={() => openEdit(inv)} className="p-2 text-vault-muted hover:text-vault-accent rounded-lg hover:bg-vault-accent/10 transition-all"><Save className="w-4 h-4" /></button>
+                          <button onClick={() => del(inv.id)} className="p-2 text-vault-muted hover:text-vault-red rounded-lg hover:bg-vault-red/10 transition-all"><Trash2 className="w-4 h-4" /></button>
+                        </>
+                      ) : (
+                        <>
+                          {isUnpaid && (
+                            <button onClick={() => setPayModal(inv)} className="vault-btn-primary text-xs px-3 py-2">
+                              <ExternalLink className="w-3.5 h-3.5" /> Pay Now
+                            </button>
+                          )}
+                          {!isUnpaid && <span className="vault-badge bg-vault-green/10 text-vault-green border border-vault-green/20"><CheckCircle className="w-3 h-3" /> Paid</span>}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -391,7 +393,7 @@ export default function InvoicesPage() {
               <h2 className="font-display font-bold text-xl text-vault-text">{editId ? 'Edit Invoice' : 'Issue Invoice'}</h2>
               <button onClick={closeModal}><X className="w-5 h-5 text-vault-muted" /></button>
             </div>
-            <div className="overflow-y-auto flex-1 pr-1 space-y-3">
+            <div className="overflow-y-auto overflow-x-hidden flex-1 pr-1 space-y-3">
               <div>
                 <label className="vault-label">Issue To</label>
                 <select className="vault-input" value={form.target_user_id} onChange={e => setForm(f => ({ ...f, target_user_id: e.target.value }))}>

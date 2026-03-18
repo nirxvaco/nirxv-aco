@@ -13,6 +13,8 @@ import Papa from 'papaparse'
 const SITES = ['Pokemon Center', 'Topps', 'Argos', 'John Lewis', 'Game', 'Warhammer', 'Very', 'Other']
 const STATUSES = {
   open:      { label: 'Open',      color: 'text-vault-green  bg-vault-green/10  border-vault-green/20' },
+  restock:   { label: '24/7 Restock', color: 'text-vault-accent bg-vault-accent/10 border-vault-accent/20' },
+  upcoming:  { label: 'Upcoming',  color: 'text-vault-gold   bg-vault-gold/10   border-vault-gold/20' },
   closed:    { label: 'Closed',    color: 'text-vault-red    bg-vault-red/10    border-vault-red/20' },
   completed: { label: 'Completed', color: 'text-vault-muted  bg-vault-border    border-vault-border' },
 }
