@@ -844,7 +844,7 @@ const load = useCallback(async () => {
                     <Field label="Billing State" name="billing_state" form={form} errors={errors} setForm={setForm} />
                     <Field label="Billing Country" name="billing_country" options={COUNTRIES} form={form} errors={errors} setForm={setForm} />
                   </div>
-                )}}
+                )}
               </section>
 
               {/* Card */}
