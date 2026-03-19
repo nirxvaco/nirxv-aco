@@ -338,9 +338,9 @@ export default function DropsPage() {
         </div>
       ) : (
         <>
-          <Section title="OPEN DROPS"     icon="🟢" colour="#00e396" drops={openDrops} />
-          <Section title="24/7 RESTOCKS"  icon="🔄" colour="#00c8ff" drops={restockDrops} />
-          <Section title="UPCOMING DROPS" icon="📅" colour="#ffe600" drops={upcomingDrops} />
+          <Section title="OPEN DROPS" colour="#00e396" drops={openDrops} />
+          <Section title="24/7 RESTOCKS" colour="#00c8ff" drops={restockDrops} />
+          <Section title="UPCOMING DROPS" colour="#ffe600" drops={upcomingDrops} />
         </>
       )}
 
