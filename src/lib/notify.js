@@ -1,22 +1,12 @@
 // src/lib/notify.js
 import { supabase } from './supabase'
 
-export async function notifyDiscord(event, details = {}) {
+// Pass username directly from useAuth().profile.username
+// This avoids RLS issues with re-querying user_profiles
+export async function notifyDiscord(event, details = {}, username = 'Unknown') {
   try {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
-
-    // Use the user's own session token to query user_profiles (RLS allows this)
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('username')
-      .eq('id', session.user.id)
-      .single()
-
-    // Strictly use the username they typed on signup — never fall back to email
-    const username = profile?.username || 'Unknown'
-
-    console.log('[notify] username resolved:', username, '| profile:', profile)
 
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 

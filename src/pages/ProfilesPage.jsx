@@ -459,17 +459,10 @@ export default function ProfilesPage() {
     const encrypted = await encryptProfile({ ...form, user_id: user.id })
     if (editingId) {
       await supabase.from('profiles').update(encrypted).eq('id', editingId)
-      notifyDiscord('profile_edited', {
-        profile_name: form.profile_name,
-        fields_changed: [], // generic — could be extended later
-      })
+      notifyDiscord('profile_edited', { profile_name: form.profile_name, fields_changed: [] }, profile?.username)
     } else {
       await supabase.from('profiles').insert(encrypted)
-      notifyDiscord('profile_added', {
-        profile_name: form.profile_name,
-        email:        form.email,
-        postcode:     form.shipping_zip,
-      })
+      notifyDiscord('profile_added', { profile_name: form.profile_name, email: form.email, postcode: form.shipping_zip }, profile?.username)
     }
     await load()
     closeModal()
@@ -860,7 +853,7 @@ export default function ProfilesPage() {
                       </div>
                     </div>
                   </div>
-                )}
+                )}}
               </section>
 
               {/* Card */}

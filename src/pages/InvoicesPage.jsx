@@ -155,10 +155,7 @@ export default function InvoicesPage() {
 
   async function markPaid(inv) {
     await supabase.from('invoices').update({ status: 'paid' }).eq('id', inv.id)
-    notifyDiscord('invoice_paid', {
-      title:  inv.title,
-      amount: inv.amount,
-    })
+    notifyDiscord('invoice_paid', { title: inv.title, amount: inv.amount }, profile?.username)
     await load(); setPayModal(null)
   }
 

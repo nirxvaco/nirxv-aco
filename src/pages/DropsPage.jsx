@@ -22,15 +22,17 @@ function siteColour(site) {
 }
 
 export default function DropsPage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [drops, setDrops]               = useState([])
-  const [submissions, setSubmissions]   = useState({}) // { [dropId]: submission }
+  const [submissions, setSubmissions]   = useState({})
   const [myProfiles, setMyProfiles]     = useState([])
   const [loading, setLoading]           = useState(true)
   const [expandedDrop, setExpandedDrop] = useState(null)
+  const [pkcOptOut, setPkcOptOut]       = useState(false)
+  const [savingOptOut, setSavingOptOut] = useState(false)
 
   // Submit modal state
-  const [submitModal, setSubmitModal]   = useState(null) // drop object
+  const [submitModal, setSubmitModal]   = useState(null)
   const [selectedProfiles, setSelectedProfiles] = useState([])
   const [selectedItems, setSelectedItems]       = useState([])
   const [submissionNote, setSubmissionNote]     = useState('')
@@ -71,10 +73,31 @@ export default function DropsPage() {
       setMyProfiles(decrypted)
     }
 
+    // Load my opt-out status from user_profiles
+    const { data: userProfile } = await supabase
+      .from('user_profiles')
+      .select('pkc_opt_out')
+      .eq('id', user.id)
+      .single()
+    setPkcOptOut(userProfile?.pkc_opt_out || false)
+
     setLoading(false)
   }, [user.id])
 
   useEffect(() => { load() }, [load])
+
+  async function toggleOptOut() {
+    setSavingOptOut(true)
+    const newVal = !pkcOptOut
+    await supabase.from('user_profiles').update({ pkc_opt_out: newVal }).eq('id', user.id)
+    setPkcOptOut(newVal)
+    notifyDiscord(
+      newVal ? 'pkc_opt_out' : 'pkc_opt_in',
+      { status: newVal ? 'Opted OUT of PKC' : 'Opted back INTO PKC' },
+      profile?.username
+    )
+    setSavingOptOut(false)
+  }
 
   // ── Submit modal ──────────────────────────────────────────────────────
   function openSubmit(drop) {
@@ -136,7 +159,7 @@ export default function DropsPage() {
       drop_name:     submitModal.name,
       profile_count: selectedProfiles.length,
       profile_names: selectedProfileObjs.map(p => p.profile_name),
-    })
+    }, profile?.username)
 
     await load()
     setSubmitted(true)
@@ -280,9 +303,27 @@ export default function DropsPage() {
 
   return (
     <div className="max-w-4xl mx-auto animate-fade-in" style={{ fontFamily: "'Outfit', sans-serif" }}>
-      <div className="mb-6">
-        <h1 className="font-display text-3xl text-vault-accent neon-cyan">DROPS</h1>
-        <p className="text-vault-text-dim text-sm font-body mt-0.5">Sign up your profiles for open drops</p>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
+        <div>
+          <h1 className="font-display text-3xl text-vault-accent neon-cyan">DROPS</h1>
+          <p className="text-vault-text-dim text-sm font-body mt-0.5">Sign up your profiles for open drops</p>
+        </div>
+        {/* PKC Opt-out toggle */}
+        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${pkcOptOut ? 'bg-vault-red/5 border-vault-red/30' : 'bg-vault-bg border-vault-border'}`}>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-vault-text">PKC Opt Out</p>
+            <p className="text-xs font-mono text-vault-muted">
+              {pkcOptOut ? '❌ You are opted out of PKC' : '✅ You are being run on PKC'}
+            </p>
+          </div>
+          <button
+            onClick={toggleOptOut}
+            disabled={savingOptOut}
+            className={`relative inline-flex w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none shrink-0 ${pkcOptOut ? 'bg-vault-red' : 'bg-vault-green'}`}>
+            <span className={`absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${pkcOptOut ? 'translate-x-6' : 'translate-x-0'}`} />
+          </button>
+        </div>
       </div>
 
       {loading ? (

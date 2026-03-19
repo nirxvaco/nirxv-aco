@@ -14,10 +14,12 @@ const corsHeaders = {
 
 // Colours per event type (Discord embed colour as decimal)
 const COLOURS = {
-  profile_added:   0x00c8ff,  // cyan
-  profile_edited:  0x7a8aff,  // blue-purple
-  invoice_paid:    0x00e396,  // green
-  drop_signup:     0xffe600,  // gold
+  profile_added:   0x00c8ff,
+  profile_edited:  0x7a8aff,
+  invoice_paid:    0x00e396,
+  drop_signup:     0xffe600,
+  pkc_opt_out:     0xff3355,
+  pkc_opt_in:      0x00e396,
 }
 
 const ICONS = {
@@ -25,6 +27,8 @@ const ICONS = {
   profile_edited:  '✏️',
   invoice_paid:    '💰',
   drop_signup:     '📦',
+  pkc_opt_out:     '❌',
+  pkc_opt_in:      '✅',
 }
 
 const TITLES = {
@@ -32,6 +36,8 @@ const TITLES = {
   profile_edited:  'Profile Edited',
   invoice_paid:    'Invoice Marked as Paid',
   drop_signup:     'Drop Sign Up',
+  pkc_opt_out:     'PKC Opt Out',
+  pkc_opt_in:      'PKC Opt Back In',
 }
 
 serve(async (req) => {
