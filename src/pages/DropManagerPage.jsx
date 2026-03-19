@@ -5,18 +5,18 @@ import { useAuth } from '../hooks/useAuth'
 import {
   Package, Plus, X, Save, Trash2, ChevronDown, ChevronUp,
   Users, Download, ExternalLink, RefreshCw, BookOpen,
-  CheckCircle, Clock, AlertCircle, Pencil, Copy, Check
+  CheckCircle, Clock, AlertCircle, Pencil, Copy, Check, UserX
 } from 'lucide-react'
 import { format } from 'date-fns'
 import Papa from 'papaparse'
 
 const SITES = ['Pokemon Center', 'Topps', 'Argos', 'John Lewis', 'Game', 'Warhammer', 'Very', 'Other']
 const STATUSES = {
-  open:      { label: 'Open',      color: 'text-vault-green  bg-vault-green/10  border-vault-green/20' },
+  open:      { label: 'Open',         color: 'text-vault-green  bg-vault-green/10  border-vault-green/20' },
   restock:   { label: '24/7 Restock', color: 'text-vault-accent bg-vault-accent/10 border-vault-accent/20' },
-  upcoming:  { label: 'Upcoming',  color: 'text-vault-gold   bg-vault-gold/10   border-vault-gold/20' },
-  closed:    { label: 'Closed',    color: 'text-vault-red    bg-vault-red/10    border-vault-red/20' },
-  completed: { label: 'Completed', color: 'text-vault-muted  bg-vault-border    border-vault-border' },
+  upcoming:  { label: 'Upcoming',     color: 'text-vault-gold   bg-vault-gold/10   border-vault-gold/20' },
+  closed:    { label: 'Closed',       color: 'text-vault-red    bg-vault-red/10    border-vault-red/20' },
+  completed: { label: 'Completed',    color: 'text-vault-muted  bg-vault-border    border-vault-border' },
 }
 
 const EMPTY_DROP = {
@@ -27,8 +27,8 @@ const EMPTY_DROP = {
 export default function DropManagerPage() {
   const { user } = useAuth()
   const [drops, setDrops]               = useState([])
-  const [submissions, setSubmissions]   = useState({}) // { [dropId]: [...] }
-  const [users, setUsers]               = useState({}) // { [userId]: username }
+  const [submissions, setSubmissions]   = useState({})
+  const [users, setUsers]               = useState({})
   const [loading, setLoading]           = useState(true)
   const [expandedDrop, setExpandedDrop] = useState(null)
   const [loadingSubs, setLoadingSubs]   = useState({})
@@ -40,7 +40,7 @@ export default function DropManagerPage() {
   const [editDropId, setEditDropId]     = useState(null)
   const [savingDrop, setSavingDrop]     = useState(false)
 
-  // Item builder inside form
+  // Item builder
   const [newItemKey, setNewItemKey]     = useState('')
   const [newItemName, setNewItemName]   = useState('')
   const [newItemPid, setNewItemPid]     = useState('')
@@ -53,7 +53,6 @@ export default function DropManagerPage() {
       .order('created_at', { ascending: false })
     setDrops(data || [])
 
-    // Load usernames
     const { data: profiles } = await supabase
       .from('user_profiles')
       .select('id, username')
@@ -74,7 +73,6 @@ export default function DropManagerPage() {
       .eq('drop_id', dropId)
       .order('submitted_at', { ascending: false })
 
-    // Enrich with latest usernames from user_profiles
     if (data && data.length > 0) {
       const userIds = [...new Set(data.map(s => s.user_id))]
       const { data: profiles } = await supabase
@@ -94,13 +92,19 @@ export default function DropManagerPage() {
     setLoadingSubs(s => ({ ...s, [dropId]: false }))
   }
 
+  // Remove a single user's submission as admin
+  async function adminRemoveSubmission(dropId, submissionId, username) {
+    if (!window.confirm(`Remove ${username}'s submission from this drop?`)) return
+    await supabase.from('drop_submissions').delete().eq('id', submissionId)
+    await loadSubmissions(dropId)
+  }
+
   function toggleDrop(dropId) {
     if (expandedDrop === dropId) { setExpandedDrop(null); return }
     setExpandedDrop(dropId)
     if (!submissions[dropId]) loadSubmissions(dropId)
   }
 
-  // ── Drop CRUD ──────────────────────────────────────────────────────────
   async function saveDrop() {
     if (!dropForm.name.trim()) return
     setSavingDrop(true)
@@ -115,6 +119,8 @@ export default function DropManagerPage() {
   }
 
   async function deleteDrop(id) {
+    if (!window.confirm('Delete this drop and all its submissions?')) return
+    await supabase.from('drop_submissions').delete().eq('drop_id', id)
     await supabase.from('drops').delete().eq('id', id)
     await load()
   }
@@ -154,18 +160,17 @@ export default function DropManagerPage() {
     setDropForm(f => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }))
   }
 
-  // ── Export submissions for a drop ──────────────────────────────────────
   function exportSubmissions(drop) {
     const subs = submissions[drop.id] || []
     const rows = subs.map(s => {
       const profileNames = JSON.parse(s.profile_names || '[]').join(', ')
       const items        = JSON.parse(s.selected_items || '[]').join(', ')
       return {
-        Username:       users[s.user_id] || s.user_id,
-        Profiles:       profileNames,
+        Username:         users[s.user_id] || s.user_id,
+        Profiles:         profileNames,
         'Items Selected': items || 'All',
-        Notes:          s.notes || '',
-        'Submitted At': format(new Date(s.submitted_at), 'dd MMM yyyy HH:mm'),
+        Notes:            s.notes || '',
+        'Submitted At':   format(new Date(s.submitted_at), 'dd MMM yyyy HH:mm'),
       }
     })
     const csv  = Papa.unparse(rows)
@@ -276,7 +281,6 @@ export default function DropManagerPage() {
                 {/* Expanded — submissions */}
                 {isExpanded && (
                   <div className="mt-4 pt-4 border-t border-vault-border animate-fade-in">
-                    {/* Notes preview */}
                     {drop.notes && (
                       <div className="mb-3 p-3 bg-vault-gold/5 border border-vault-gold/20 rounded-xl">
                         <p className="text-[10px] font-mono text-vault-gold uppercase tracking-widest mb-1">Admin Notes</p>
@@ -285,7 +289,7 @@ export default function DropManagerPage() {
                     )}
 
                     {/* Submission toolbar */}
-                    <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
                       <p className="text-xs font-mono text-vault-muted flex-1">
                         {loadingSubs[drop.id] ? 'Loading...' : `${subs.length} submission${subs.length !== 1 ? 's' : ''}`}
                       </p>
@@ -294,7 +298,6 @@ export default function DropManagerPage() {
                         <RefreshCw className="w-3 h-3" /> Refresh
                       </button>
                       {subs.length > 0 && (() => {
-                        // Build all PIDs string for all submissions
                         const allLines = subs.flatMap(sub => {
                           const profileNames  = JSON.parse(sub.profile_names || '[]')
                           const selectedItems = JSON.parse(sub.selected_items || '[]')
@@ -345,32 +348,22 @@ export default function DropManagerPage() {
                           const profileNames  = JSON.parse(sub.profile_names || '[]')
                           const selectedItems = JSON.parse(sub.selected_items || '[]')
                           const dropItems     = drop.items || []
-
-                          // Build PID string — if they selected specific items use those PIDs,
-                          // otherwise use all item PIDs
                           const relevantItems = selectedItems.length > 0
                             ? dropItems.filter(item => selectedItems.includes(item.key))
                             : dropItems
-                          const pids = relevantItems.map(item => item.pid).filter(Boolean)
+                          const pids      = relevantItems.map(item => item.pid).filter(Boolean)
                           const pidString = pids.join(',')
-
-                          // Format per profile: Username — ProfileName — PIDs
-                          const username = users[sub.user_id] || sub.user_id
+                          const username  = users[sub.user_id] || sub.user_id
                           const copyLines = profileNames.map(pn =>
-                            pidString
-                              ? `${username} — ${pn} — ${pidString}`
-                              : `${username} — ${pn}`
+                            pidString ? `${username} — ${pn} — ${pidString}` : `${username} — ${pn}`
                           ).join('\n')
-
                           const copyKey = sub.id
 
                           return (
                             <div key={sub.id} className="bg-vault-bg rounded-xl px-3 py-2.5 border border-vault-border">
                               <div className="flex items-start gap-3 flex-wrap">
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-display text-vault-text">
-                                    {username}
-                                  </p>
+                                  <p className="text-sm font-display text-vault-text">{username}</p>
                                   <p className="text-xs font-mono text-vault-text-dim mt-0.5">
                                     {profileNames.length > 0 ? profileNames.join(', ') : 'No profiles'}
                                   </p>
@@ -380,12 +373,8 @@ export default function DropManagerPage() {
                                     </p>
                                   )}
                                   {sub.notes && (
-                                    <p className="text-xs font-mono text-vault-gold mt-0.5">
-                                      Note: {sub.notes}
-                                    </p>
+                                    <p className="text-xs font-mono text-vault-gold mt-0.5">Note: {sub.notes}</p>
                                   )}
-
-                                  {/* PID copy string — admin only */}
                                   {pids.length > 0 && (
                                     <div className="mt-2 p-2 bg-vault-bg rounded-lg border border-vault-gold/20">
                                       <div className="flex items-center justify-between gap-2 mb-1">
@@ -406,13 +395,21 @@ export default function DropManagerPage() {
                                     </div>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className="vault-badge border text-[10px] text-vault-green border-vault-green/20 bg-vault-green/10">
-                                    {profileNames.length} profile{profileNames.length !== 1 ? 's' : ''}
-                                  </span>
-                                  <p className="text-[10px] font-mono text-vault-muted">
-                                    {format(new Date(sub.submitted_at), 'dd MMM HH:mm')}
-                                  </p>
+                                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="vault-badge border text-[10px] text-vault-green border-vault-green/20 bg-vault-green/10">
+                                      {profileNames.length} profile{profileNames.length !== 1 ? 's' : ''}
+                                    </span>
+                                    <p className="text-[10px] font-mono text-vault-muted">
+                                      {format(new Date(sub.submitted_at), 'dd MMM HH:mm')}
+                                    </p>
+                                  </div>
+                                  {/* Admin remove button */}
+                                  <button
+                                    onClick={() => adminRemoveSubmission(drop.id, sub.id, username)}
+                                    className="flex items-center gap-1 text-[10px] font-mono text-vault-muted hover:text-vault-red transition-colors">
+                                    <UserX className="w-3 h-3" /> Remove
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -440,7 +437,6 @@ export default function DropManagerPage() {
             </div>
 
             <div className="overflow-y-auto flex-1 pr-1 space-y-4">
-              {/* Basic info */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="vault-label">Drop Name *</label>
@@ -461,7 +457,6 @@ export default function DropManagerPage() {
                 </div>
               </div>
 
-              {/* Guide URLs — per cookgroup */}
               <div className="space-y-2">
                 <label className="vault-label">Cookgroup Guide Links</label>
                 <div className="flex items-center gap-2">
@@ -482,24 +477,18 @@ export default function DropManagerPage() {
                     value={dropForm.guide_rv || ''}
                     onChange={e => setDropForm(f => ({ ...f, guide_rv: e.target.value }))} />
                 </div>
-                <p className="text-vault-muted text-xs font-mono">Leave blank for any groups that don't have a guide for this drop</p>
               </div>
 
-              {/* Admin notes */}
               <div>
                 <label className="vault-label">Admin Notes</label>
                 <textarea className="vault-input min-h-[80px] resize-none" rows={3}
-                  placeholder="Instructions for members e.g. 'No URL change needed if postcode has a space'"
+                  placeholder="Instructions for members..."
                   value={dropForm.notes}
                   onChange={e => setDropForm(f => ({ ...f, notes: e.target.value }))} />
-                <p className="text-vault-muted text-xs font-mono mt-1">
-                  Members see this prominently before submitting — use it for important instructions
-                </p>
               </div>
 
-              {/* Items builder */}
               <div>
-                <label className="vault-label">Items <span className="text-vault-muted">(optional — for multi-item drops)</span></label>
+                <label className="vault-label">Items <span className="text-vault-muted">(optional)</span></label>
                 <div className="space-y-1.5 mb-2">
                   {(dropForm.items || []).map((item, i) => (
                     <div key={i} className="flex items-center gap-2 bg-vault-bg rounded-lg px-3 py-2 border border-vault-border">
@@ -520,18 +509,15 @@ export default function DropManagerPage() {
                 <div className="space-y-2">
                   <div className="flex gap-2">
                     <input className="vault-input w-16 font-mono uppercase text-center text-sm"
-                      placeholder="A"
-                      value={newItemKey}
-                      maxLength={3}
+                      placeholder="A" value={newItemKey} maxLength={3}
                       onChange={e => setNewItemKey(e.target.value.toUpperCase())} />
                     <input className="vault-input flex-1 text-sm"
-                      placeholder="Item name (e.g. ETB)"
-                      value={newItemName}
+                      placeholder="Item name (e.g. ETB)" value={newItemName}
                       onChange={e => setNewItemName(e.target.value)} />
                   </div>
                   <div className="flex gap-2">
                     <input className="vault-input flex-1 font-mono text-sm text-vault-gold"
-                      placeholder="PID (e.g. 101-2311-101) — admin only, not shown to members"
+                      placeholder="PID — admin only, not shown to members"
                       value={newItemPid}
                       onChange={e => setNewItemPid(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addItem()} />
@@ -542,7 +528,6 @@ export default function DropManagerPage() {
                 </div>
               </div>
 
-              {/* Status */}
               <div>
                 <label className="vault-label">Status</label>
                 <select className="vault-input" value={dropForm.status}

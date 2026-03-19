@@ -12,7 +12,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// Colours per event type (Discord embed colour as decimal)
 const COLOURS = {
   profile_added:   0x00c8ff,
   profile_edited:  0x7a8aff,
@@ -20,6 +19,7 @@ const COLOURS = {
   drop_signup:     0xffe600,
   pkc_opt_out:     0xff3355,
   pkc_opt_in:      0x00e396,
+  drop_opt_out:    0xff6b35,
 }
 
 const ICONS = {
@@ -29,6 +29,7 @@ const ICONS = {
   drop_signup:     '📦',
   pkc_opt_out:     '❌',
   pkc_opt_in:      '✅',
+  drop_opt_out:    '🚫',
 }
 
 const TITLES = {
@@ -38,6 +39,17 @@ const TITLES = {
   drop_signup:     'Drop Sign Up',
   pkc_opt_out:     'PKC Opt Out',
   pkc_opt_in:      'PKC Opt Back In',
+  drop_opt_out:    'Cleared Profiles for Drop',
+}
+
+const DESCRIPTIONS = {
+  profile_added:   (u) => `**${u}** added a new profile`,
+  profile_edited:  (u) => `**${u}** edited a profile`,
+  invoice_paid:    (u) => `**${u}** marked an invoice as paid`,
+  drop_signup:     (u) => `**${u}** signed up for a drop`,
+  pkc_opt_out:     (u) => `**${u}** has opted out of PKC`,
+  pkc_opt_in:      (u) => `**${u}** has opted back into PKC`,
+  drop_opt_out:    (u) => `**${u}** cleared their profiles for a drop`,
 }
 
 serve(async (req) => {
@@ -47,21 +59,18 @@ serve(async (req) => {
 
   try {
     const { event, username, details } = await req.json()
-    // event: 'profile_added' | 'profile_edited' | 'invoice_paid' | 'drop_signup'
-    // username: the member's display name
-    // details: object with relevant fields
 
     const colour = COLOURS[event] ?? 0x7a7a9a
     const icon   = ICONS[event]   ?? '🔔'
     const title  = TITLES[event]  ?? 'Notification'
+    const descFn = DESCRIPTIONS[event] ?? ((u) => `**${u}** performed an action`)
 
-    // Build fields based on event
     const fields = []
 
     if (event === 'profile_added') {
-      if (details.profile_name) fields.push({ name: 'Profile', value: `\`${details.profile_name}\``, inline: true })
-      if (details.email)        fields.push({ name: 'Email',   value: `\`${details.email}\``,        inline: true })
-      if (details.postcode)     fields.push({ name: 'Postcode',value: `\`${details.postcode}\``,     inline: true })
+      if (details.profile_name) fields.push({ name: 'Profile',  value: `\`${details.profile_name}\``, inline: true })
+      if (details.email)        fields.push({ name: 'Email',    value: `\`${details.email}\``,        inline: true })
+      if (details.postcode)     fields.push({ name: 'Postcode', value: `\`${details.postcode}\``,     inline: true })
     }
 
     if (event === 'profile_edited') {
@@ -72,22 +81,30 @@ serve(async (req) => {
     }
 
     if (event === 'invoice_paid') {
-      if (details.title)  fields.push({ name: 'Invoice', value: `\`${details.title}\``,              inline: true })
+      if (details.title)  fields.push({ name: 'Invoice', value: `\`${details.title}\``,                          inline: true })
       if (details.amount) fields.push({ name: 'Amount',  value: `**£${parseFloat(details.amount).toFixed(2)}**`, inline: true })
     }
 
     if (event === 'drop_signup') {
-      if (details.drop_name)     fields.push({ name: 'Drop',     value: `\`${details.drop_name}\``,                          inline: true })
-      if (details.profile_count) fields.push({ name: 'Profiles', value: `**${details.profile_count}**`,                      inline: true })
+      if (details.drop_name)     fields.push({ name: 'Drop',     value: `\`${details.drop_name}\``,   inline: true })
+      if (details.profile_count) fields.push({ name: 'Profiles', value: `**${details.profile_count}**`, inline: true })
       if (details.profile_names?.length) {
         fields.push({ name: 'Profile Names', value: details.profile_names.join(', '), inline: false })
       }
     }
 
+    if (event === 'drop_opt_out') {
+      if (details.drop_name) fields.push({ name: 'Drop', value: `\`${details.drop_name}\``, inline: true })
+    }
+
+    if (event === 'pkc_opt_out' || event === 'pkc_opt_in') {
+      if (details.status) fields.push({ name: 'Status', value: details.status, inline: true })
+    }
+
     const embed = {
       title:       `${icon} ${title}`,
       color:       colour,
-      description: `**${username}** just ${TITLES[event]?.toLowerCase() ?? 'did something'}`,
+      description: descFn(username),
       fields,
       footer:      { text: 'Nirxv ACO' },
       timestamp:   new Date().toISOString(),

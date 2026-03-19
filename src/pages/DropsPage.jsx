@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth'
 import { decryptProfile } from '../lib/crypto'
 import {
   Package, ExternalLink, CheckCircle, Clock, X, Send,
-  ChevronDown, ChevronUp, BookOpen, AlertCircle, Check
+  ChevronDown, ChevronUp, BookOpen, AlertCircle, Check, Trash2
 } from 'lucide-react'
 import { notifyDiscord } from '../lib/notify'
 import { format } from 'date-fns'
@@ -32,17 +32,20 @@ export default function DropsPage() {
   const [savingOptOut, setSavingOptOut] = useState(false)
 
   // Submit modal state
-  const [submitModal, setSubmitModal]   = useState(null)
+  const [submitModal, setSubmitModal]         = useState(null)
   const [selectedProfiles, setSelectedProfiles] = useState([])
   const [selectedItems, setSelectedItems]       = useState([])
   const [submissionNote, setSubmissionNote]     = useState('')
   const [submitting, setSubmitting]             = useState(false)
   const [submitted, setSubmitted]               = useState(false)
 
+  // Opt-out confirm
+  const [clearConfirm, setClearConfirm]   = useState(false)
+  const [clearing, setClearing]           = useState(false)
+
   const load = useCallback(async () => {
     setLoading(true)
 
-    // Load ALL drops (open, restock, upcoming)
     const { data: dropData } = await supabase
       .from('drops')
       .select('*')
@@ -51,7 +54,6 @@ export default function DropsPage() {
 
     setDrops(dropData || [])
 
-    // Load my submissions
     const { data: subData } = await supabase
       .from('drop_submissions')
       .select('*')
@@ -61,7 +63,6 @@ export default function DropsPage() {
     ;(subData || []).forEach(s => { subMap[s.drop_id] = s })
     setSubmissions(subMap)
 
-    // Load my profiles (decrypted) for the picker
     const { data: profileData } = await supabase
       .from('profiles')
       .select('*')
@@ -73,7 +74,6 @@ export default function DropsPage() {
       setMyProfiles(decrypted)
     }
 
-    // Load my opt-out status from user_profiles
     const { data: userProfile } = await supabase
       .from('user_profiles')
       .select('pkc_opt_out')
@@ -102,21 +102,17 @@ export default function DropsPage() {
   // ── Submit modal ──────────────────────────────────────────────────────
   function openSubmit(drop) {
     const existing = submissions[drop.id]
-
-    // Filter saved profile IDs against currently existing profiles
-    // so deleted profiles don't show as selected
     const existingProfileIds = existing ? JSON.parse(existing.profile_ids || '[]') : []
     const validProfileIds = existingProfileIds.filter(id =>
       myProfiles.some(p => p.id === id)
     )
-
-    // If profiles were deleted, clear the submitted state so they have to resubmit
     const hadDeletions = existingProfileIds.length > validProfileIds.length
 
     setSelectedProfiles(validProfileIds)
     setSelectedItems(existing ? JSON.parse(existing.selected_items || '[]') : [])
     setSubmissionNote(existing ? existing.notes || '' : '')
     setSubmitted(existing && !hadDeletions)
+    setClearConfirm(false)
     setSubmitModal(drop)
   }
 
@@ -164,6 +160,28 @@ export default function DropsPage() {
     await load()
     setSubmitted(true)
     setSubmitting(false)
+  }
+
+  // ── Clear / opt out of a drop ─────────────────────────────────────────
+  async function handleClearProfiles() {
+    setClearing(true)
+    await supabase
+      .from('drop_submissions')
+      .delete()
+      .eq('drop_id', submitModal.id)
+      .eq('user_id', user.id)
+
+    notifyDiscord('drop_opt_out', {
+      drop_name: submitModal.name,
+    }, profile?.username)
+
+    await load()
+    setSelectedProfiles([])
+    setSelectedItems([])
+    setSubmissionNote('')
+    setSubmitted(false)
+    setClearConfirm(false)
+    setClearing(false)
   }
 
   const items = submitModal?.items || []
@@ -301,6 +319,8 @@ export default function DropsPage() {
     )
   }
 
+  const hasExistingSubmission = submitModal && !!submissions[submitModal.id]
+
   return (
     <div className="max-w-4xl mx-auto animate-fade-in" style={{ fontFamily: "'Outfit', sans-serif" }}>
       {/* Header */}
@@ -338,12 +358,13 @@ export default function DropsPage() {
         </div>
       ) : (
         <>
-          <Section title="OPEN DROPS" colour="#00e396" drops={openDrops} />
-          <Section title="24/7 RESTOCKS" colour="#00c8ff" drops={restockDrops} />
-          <Section title="UPCOMING DROPS" colour="#ffe600" drops={upcomingDrops} />
+          <Section title="OPEN DROPS"    icon="🟢" colour="#00e396" drops={openDrops} />
+          <Section title="24/7 RESTOCKS" icon="🔄" colour="#00c8ff" drops={restockDrops} />
+          <Section title="UPCOMING DROPS" icon="🔜" colour="#ffe600" drops={upcomingDrops} />
         </>
       )}
 
+      {/* ── Submit / Update Modal ── */}
       {submitModal && createPortal(
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-3 sm:p-4"
           style={{ backdropFilter: 'blur(4px)' }}
@@ -351,6 +372,7 @@ export default function DropsPage() {
           <div className="w-full max-w-lg flex flex-col animate-fade-in rounded-2xl overflow-hidden border border-vault-border"
             style={{ maxHeight: '92vh', background: '#0e0e1a' }}>
 
+            {/* Modal header */}
             <div className="relative shrink-0 px-4 sm:px-6 pt-5 pb-4"
               style={{ background: 'linear-gradient(135deg, rgba(0,200,255,0.12) 0%, rgba(180,79,255,0.08) 100%)', borderBottom: '1px solid rgba(0,200,255,0.15)' }}>
               <button onClick={() => setSubmitModal(null)}
@@ -394,7 +416,40 @@ export default function DropsPage() {
               )}
             </div>
 
+            {/* Scrollable content */}
             <div className="overflow-y-auto overflow-x-hidden flex-1 px-4 sm:px-6 py-4 space-y-4">
+
+              {/* ── Clear confirmation banner ── */}
+              {clearConfirm && (
+                <div className="rounded-xl p-4 border border-vault-red/40 bg-vault-red/5 animate-fade-in">
+                  <div className="flex items-start gap-3 mb-3">
+                    <AlertCircle className="w-4 h-4 text-vault-red shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-vault-text">Remove your sign-up for this drop?</p>
+                      <p className="text-xs font-mono text-vault-muted mt-0.5">
+                        Your profiles will be removed from this drop. You can sign up again any time before it closes.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setClearConfirm(false)}
+                      className="flex-1 py-2 rounded-lg text-sm font-medium text-vault-text-dim hover:text-vault-text hover:bg-vault-border transition-all border border-vault-border">
+                      Keep my sign-up
+                    </button>
+                    <button
+                      onClick={handleClearProfiles}
+                      disabled={clearing}
+                      className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all"
+                      style={{ background: 'rgba(255,75,75,0.15)', color: '#ff4b4b', border: '1px solid rgba(255,75,75,0.3)' }}>
+                      {clearing
+                        ? <><div className="w-3.5 h-3.5 border-2 border-vault-red border-t-transparent rounded-full animate-spin" />Removing...</>
+                        : <><Trash2 className="w-3.5 h-3.5" />Yes, remove me</>}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {submitModal.notes && (
                 <div className="rounded-xl p-3 flex gap-3"
                   style={{ background: 'rgba(255,230,0,0.05)', border: '1px solid rgba(255,230,0,0.2)' }}>
@@ -405,6 +460,7 @@ export default function DropsPage() {
                   </div>
                 </div>
               )}
+
               {items.length > 1 && (
                 <div>
                   <p className="text-[11px] font-mono text-vault-muted uppercase tracking-widest mb-2">
@@ -428,6 +484,7 @@ export default function DropsPage() {
                   </div>
                 </div>
               )}
+
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[11px] font-mono text-vault-muted uppercase tracking-widest">
@@ -468,6 +525,7 @@ export default function DropsPage() {
                   </div>
                 )}
               </div>
+
               <div>
                 <label className="text-[11px] font-mono text-vault-muted uppercase tracking-widest block mb-2">
                   Note to Admin <span className="normal-case opacity-60">(optional)</span>
@@ -478,26 +536,40 @@ export default function DropsPage() {
               </div>
             </div>
 
-            <div className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 flex gap-3"
+            {/* Footer */}
+            <div className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 space-y-2"
               style={{ borderTop: '1px solid #1a1a2e', background: '#08080f' }}>
-              <button onClick={() => setSubmitModal(null)}
-                className="px-4 py-2.5 rounded-lg text-sm text-vault-text-dim hover:text-vault-text hover:bg-vault-border transition-all">
-                Cancel
-              </button>
-              <button onClick={handleSubmit}
-                disabled={!selectedProfiles.length || submitting || submitted}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{
-                  background: submitted ? 'rgba(0,227,150,0.1)' : '#00c8ff',
-                  color: submitted ? '#00e396' : '#08080f',
-                  border: submitted ? '1px solid rgba(0,227,150,0.3)' : 'none',
-                }}>
-                {submitting
-                  ? <><div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />Submitting...</>
-                  : submitted
-                  ? <><CheckCircle className="w-4 h-4" />Submitted!</>
-                  : <><Send className="w-4 h-4" />Submit {selectedProfiles.length > 0 ? `${selectedProfiles.length} Profile${selectedProfiles.length > 1 ? 's' : ''}` : ''}</>}
-              </button>
+
+              {/* Clear profiles button — only shown if already submitted */}
+              {hasExistingSubmission && !clearConfirm && (
+                <button
+                  onClick={() => setClearConfirm(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all"
+                  style={{ background: 'rgba(255,75,75,0.08)', color: '#ff4b4b', border: '1px solid rgba(255,75,75,0.2)' }}>
+                  <Trash2 className="w-3.5 h-3.5" /> Clear my profiles for this drop
+                </button>
+              )}
+
+              <div className="flex gap-3">
+                <button onClick={() => setSubmitModal(null)}
+                  className="px-4 py-2.5 rounded-lg text-sm text-vault-text-dim hover:text-vault-text hover:bg-vault-border transition-all">
+                  Cancel
+                </button>
+                <button onClick={handleSubmit}
+                  disabled={!selectedProfiles.length || submitting || submitted}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{
+                    background: submitted ? 'rgba(0,227,150,0.1)' : '#00c8ff',
+                    color: submitted ? '#00e396' : '#08080f',
+                    border: submitted ? '1px solid rgba(0,227,150,0.3)' : 'none',
+                  }}>
+                  {submitting
+                    ? <><div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />Submitting...</>
+                    : submitted
+                    ? <><CheckCircle className="w-4 h-4" />Submitted!</>
+                    : <><Send className="w-4 h-4" />Submit {selectedProfiles.length > 0 ? `${selectedProfiles.length} Profile${selectedProfiles.length > 1 ? 's' : ''}` : ''}</>}
+                </button>
+              </div>
             </div>
           </div>
         </div>,
