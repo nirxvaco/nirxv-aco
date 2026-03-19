@@ -166,23 +166,7 @@ export default function DropsPage() {
     setSubmitting(false)
   }
 
-  async function handleWithdraw() {
-    if (!submitModal) return
-    setSubmitting(true)
-    await supabase
-      .from('drop_submissions')
-      .delete()
-      .eq('drop_id', submitModal.id)
-      .eq('user_id', user.id)
-    notifyDiscord('drop_withdraw', {
-      drop_name: submitModal.name,
-    }, profile?.username)
-    await load()
-    setSubmitted(false)
-    setSelectedProfiles([])
-    setSubmitModal(null)
-    setSubmitting(false)
-  }
+  const items = submitModal?.items || []
 
   const openDrops     = drops.filter(d => d.status === 'open')
   const restockDrops  = drops.filter(d => d.status === 'restock')
@@ -500,14 +484,6 @@ export default function DropsPage() {
                 className="px-4 py-2.5 rounded-lg text-sm text-vault-text-dim hover:text-vault-text hover:bg-vault-border transition-all">
                 Cancel
               </button>
-              {/* Withdraw button — only shows when already submitted */}
-              {submissions[submitModal?.id] && (
-                <button onClick={handleWithdraw} disabled={submitting}
-                  className="px-4 py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-40"
-                  style={{ background: 'rgba(255,51,85,0.1)', color: '#ff3355', border: '1px solid rgba(255,51,85,0.3)' }}>
-                  {submitting ? '...' : '✕ Withdraw'}
-                </button>
-              )}
               <button onClick={handleSubmit}
                 disabled={!selectedProfiles.length || submitting || submitted}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"

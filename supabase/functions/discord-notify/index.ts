@@ -18,7 +18,6 @@ const COLOURS = {
   profile_edited:  0x7a8aff,
   invoice_paid:    0x00e396,
   drop_signup:     0xffe600,
-  drop_withdraw:   0xff3355,
   pkc_opt_out:     0xff3355,
   pkc_opt_in:      0x00e396,
 }
@@ -28,7 +27,6 @@ const ICONS = {
   profile_edited:  '✏️',
   invoice_paid:    '💰',
   drop_signup:     '📦',
-  drop_withdraw:   '🚫',
   pkc_opt_out:     '❌',
   pkc_opt_in:      '✅',
 }
@@ -38,7 +36,6 @@ const TITLES = {
   profile_edited:  'Profile Edited',
   invoice_paid:    'Invoice Marked as Paid',
   drop_signup:     'Drop Sign Up',
-  drop_withdraw:   'Drop Withdrawal',
   pkc_opt_out:     'PKC Opt Out',
   pkc_opt_in:      'PKC Opt Back In',
 }
@@ -80,19 +77,11 @@ serve(async (req) => {
     }
 
     if (event === 'drop_signup') {
-      if (details.drop_name)     fields.push({ name: 'Drop',     value: `\`${details.drop_name}\``,    inline: true })
-      if (details.profile_count) fields.push({ name: 'Profiles', value: `**${details.profile_count}**`, inline: true })
+      if (details.drop_name)     fields.push({ name: 'Drop',     value: `\`${details.drop_name}\``,                          inline: true })
+      if (details.profile_count) fields.push({ name: 'Profiles', value: `**${details.profile_count}**`,                      inline: true })
       if (details.profile_names?.length) {
         fields.push({ name: 'Profile Names', value: details.profile_names.join(', '), inline: false })
       }
-    }
-
-    if (event === 'drop_withdraw') {
-      if (details.drop_name) fields.push({ name: 'Drop', value: `\`${details.drop_name}\``, inline: true })
-    }
-
-    if (event === 'pkc_opt_out' || event === 'pkc_opt_in') {
-      if (details.status) fields.push({ name: 'Status', value: details.status, inline: false })
     }
 
     const embed = {
