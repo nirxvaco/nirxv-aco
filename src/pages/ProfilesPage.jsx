@@ -418,14 +418,7 @@ export default function ProfilesPage() {
       e.shipping_first_name = `Name "${f.shipping_first_name} ${f.shipping_last_name}" already used on "${dupName.profile_name}"`
     }
 
-    // ── Max 3 profiles per postcode ───────────────────────────────────────
-    const sameZip = others.filter(p =>
-      p.shipping_zip?.trim().toUpperCase() === cleanZip
-    )
-    if (sameZip.length >= 3) {
-      e.shipping_zip = `Max 3 profiles allowed per postcode — ${cleanZip} already has ${sameZip.length}`
-    }
-
+    
     // ── Same full address ─────────────────────────────────────────────────
     const cleanAddr = f.shipping_address.trim().toLowerCase()
     const dupAddr = others.find(p =>
@@ -787,20 +780,6 @@ export default function ProfilesPage() {
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="vault-label mb-0">ZIP / Postcode <span className="text-vault-red ml-1">*</span></label>
-                      {form.shipping_zip.trim() && (() => {
-                        const zip = form.shipping_zip.trim().toUpperCase()
-                        const count = profiles.filter(p =>
-                          p.id !== editingId &&
-                          p.shipping_zip?.trim().toUpperCase() === zip
-                        ).length
-                        const remaining = 3 - count
-                        return (
-                          <span className={`text-[10px] font-mono ${remaining <= 0 ? 'text-vault-red' : remaining === 1 ? 'text-vault-gold' : 'text-vault-muted'}`}>
-                            {count}/3 profiles at this postcode
-                            {remaining <= 0 ? ' — FULL' : remaining === 1 ? ' — 1 left' : ''}
-                          </span>
-                        )
-                      })()}
                     </div>
                     <input
                       className={`vault-input ${errors.shipping_zip ? 'border-vault-red' : ''}`}
@@ -853,7 +832,7 @@ export default function ProfilesPage() {
                       </div>
                     </div>
                   </div>
-                )}}
+                )}
               </section>
 
               {/* Card */}
