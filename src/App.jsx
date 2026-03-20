@@ -12,6 +12,7 @@ import OrderTrackingPage from './pages/OrderTrackingPage'
 import PasTrackerPage from './pages/PasTrackerPage'
 import DropsPage from './pages/DropsPage'
 import DropManagerPage from './pages/DropManagerPage'
+import MyRunsPage from './pages/MyRunsPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -59,6 +60,7 @@ export default function App() {
         <Route path="pas" element={<AdminRoute><PasTrackerPage /></AdminRoute>} />
         <Route path="drop-manager" element={<AdminRoute><DropManagerPage /></AdminRoute>} />
         <Route path="admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
+        <Route path="runs" element={<MyRunsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/profiles" replace />} />
     </Routes>

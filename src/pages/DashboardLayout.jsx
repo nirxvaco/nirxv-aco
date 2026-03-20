@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import { createPortal } from 'react-dom'
+import { Activity } from 'lucide-react'
 import {
   CreditCard, FileText, TrendingUp, Receipt,
   Trophy, ShieldCheck, LogOut, Menu, X, ChevronRight,
@@ -16,6 +17,7 @@ const NAV = [
   { to: '/drops',       icon: Layers,       label: 'Drops' },
   { to: '/profit',      icon: TrendingUp,   label: 'Profit Tracker' },
   { to: '/expenses',    icon: Receipt,      label: 'Expenses' },
+  { to: '/runs', icon: Activity, label: 'My Runs' },
   { to: '/leaderboard', icon: Trophy,       label: 'Leaderboard' },
 ]
 

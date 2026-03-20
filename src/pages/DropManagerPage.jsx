@@ -5,8 +5,8 @@ import { useAuth } from '../hooks/useAuth'
 import { decryptProfile } from '../lib/crypto'
 import {
   Package, Plus, X, Save, Trash2, ChevronDown, ChevronUp,
-  Download, RefreshCw, BookOpen,
-  Clock, Pencil, Copy, Check, UserX, FileDown
+  Download, RefreshCw, BookOpen, Users,
+  Clock, Pencil, Copy, Check, UserX, FileDown, UserCheck, Sword
 } from 'lucide-react'
 import { format } from 'date-fns'
 import Papa from 'papaparse'
@@ -19,6 +19,11 @@ const STATUSES = {
   closed:    { label: 'Closed',       color: 'text-vault-red    bg-vault-red/10    border-vault-red/20' },
   completed: { label: 'Completed',    color: 'text-vault-muted  bg-vault-border    border-vault-border' },
 }
+
+const RUNNERS = [
+  { key: 'nirxv',   label: 'Nirxv',   colour: '#00c8ff' },
+  { key: 'warrior', label: 'Warrior', colour: '#ffe600' },
+]
 
 const EMPTY_DROP = {
   name: '', site: 'Pokemon Center', status: 'open',
@@ -78,6 +83,11 @@ export default function DropManagerPage() {
   const [exportModal, setExportModal] = useState(null)
   const [exportLoading, setExportLoading] = useState(false)
 
+  // Runner assignment
+  const [assignModal, setAssignModal] = useState(null) // { drop, sub }
+  const [runs, setRuns]               = useState({})   // { dropId: { profileId: { runner, run_id } } }
+  const [savingRun, setSavingRun]     = useState(null) // profileId being saved
+
   const [dropModal, setDropModal]     = useState(false)
   const [dropForm, setDropForm]       = useState(EMPTY_DROP)
   const [editDropId, setEditDropId]   = useState(null)
@@ -99,6 +109,14 @@ export default function DropManagerPage() {
 
   useEffect(() => { load() }, [load])
 
+  // Load runs for a drop
+  async function loadRuns(dropId) {
+    const { data } = await supabase.from('profile_runs').select('*').eq('drop_id', dropId)
+    const map = {}
+    ;(data || []).forEach(r => { map[r.profile_id] = { runner: r.runner, run_id: r.id } })
+    setRuns(prev => ({ ...prev, [dropId]: map }))
+  }
+
   async function loadSubmissions(dropId) {
     setLoadingSubs(s => ({ ...s, [dropId]: true }))
     const { data } = await supabase.from('drop_submissions').select('*').eq('drop_id', dropId).order('submitted_at', { ascending: false })
@@ -109,6 +127,7 @@ export default function DropManagerPage() {
     }
     setSubmissions(s => ({ ...s, [dropId]: data || [] }))
     setLoadingSubs(s => ({ ...s, [dropId]: false }))
+    await loadRuns(dropId)
   }
 
   async function adminRemoveSubmission(dropId, submissionId, username) {
@@ -123,7 +142,42 @@ export default function DropManagerPage() {
     if (!submissions[dropId]) loadSubmissions(dropId)
   }
 
-  // ── Helper: fetch & decrypt all profiles for a drop ──────────────────
+  // ── Assign runner to a profile ────────────────────────────────────────
+  async function assignRunner(drop, sub, profileId, profileName, runner) {
+    setSavingRun(profileId)
+    const dropRuns = runs[drop.id] || {}
+    const existing = dropRuns[profileId]
+
+    if (existing) {
+      // Update existing run
+      await supabase.from('profile_runs').update({ runner }).eq('id', existing.run_id)
+    } else {
+      // Insert new run
+      await supabase.from('profile_runs').insert({
+        drop_id:      drop.id,
+        user_id:      sub.user_id,
+        profile_id:   profileId,
+        profile_name: profileName,
+        runner,
+        site:         drop.site,
+        drop_name:    drop.name,
+      })
+    }
+    await loadRuns(drop.id)
+    setSavingRun(null)
+  }
+
+  async function removeRunner(drop, profileId) {
+    const dropRuns = runs[drop.id] || {}
+    const existing = dropRuns[profileId]
+    if (!existing) return
+    setSavingRun(profileId)
+    await supabase.from('profile_runs').delete().eq('id', existing.run_id)
+    await loadRuns(drop.id)
+    setSavingRun(null)
+  }
+
+  // ── Profile map helpers ───────────────────────────────────────────────
   async function fetchProfileMap(dropId) {
     const subs = submissions[dropId] || []
     const allIds = [...new Set(subs.flatMap(s => JSON.parse(s.profile_ids || '[]')))]
@@ -135,7 +189,6 @@ export default function DropManagerPage() {
     return pm
   }
 
-  // ── Build combo map from submissions ─────────────────────────────────
   function buildComboMap(drop) {
     const subs = submissions[drop.id] || []
     const dropItems = drop.items || []
@@ -146,11 +199,7 @@ export default function DropManagerPage() {
       const itemsForSub   = selectedItems.length > 0 ? selectedItems : dropItems.map(i => i.key)
       const comboKey      = [...itemsForSub].sort().join('+') || 'ALL'
       if (!comboMap[comboKey]) {
-        // Build human-readable item list
-        const itemDetails = itemsForSub.map(k => {
-          const item = dropItems.find(i => i.key === k)
-          return { key: k, name: item?.name || '' }
-        })
+        const itemDetails = itemsForSub.map(k => { const item = dropItems.find(i => i.key === k); return { key: k, name: item?.name || '' } })
         comboMap[comboKey] = { itemDetails, profileCount: 0 }
       }
       comboMap[comboKey].profileCount += profileIds.length
@@ -158,7 +207,6 @@ export default function DropManagerPage() {
     return comboMap
   }
 
-  // ── Download a single combo group ─────────────────────────────────────
   async function downloadSingleCombo(drop, comboKey) {
     const pm = await fetchProfileMap(drop.id)
     const subs = submissions[drop.id] || []
@@ -176,7 +224,6 @@ export default function DropManagerPage() {
     downloadCSV(rows, `${dropName}_${comboKey}.csv`)
   }
 
-  // ── Download combined CSV ─────────────────────────────────────────────
   async function downloadCombined(drop) {
     const pm = await fetchProfileMap(drop.id)
     const subs = submissions[drop.id] || []
@@ -194,7 +241,6 @@ export default function DropManagerPage() {
     downloadCSV(rows, `${dropName}_COMBINED.csv`)
   }
 
-  // ── Download ALL combos + combined in sequence ────────────────────────
   async function exportDropCSVs(drop) {
     setExportLoading(true)
     const pm = await fetchProfileMap(drop.id)
@@ -218,7 +264,6 @@ export default function DropManagerPage() {
       setTimeout(() => downloadCSV(rows, `${dropName}_${comboKey}.csv`), i * 400)
     }
 
-    // Combined
     const combinedRows = []
     for (const sub of subs) {
       const pids = JSON.parse(sub.profile_ids || '[]')
@@ -252,6 +297,7 @@ export default function DropManagerPage() {
   async function deleteDrop(id) {
     if (!window.confirm('Delete this drop and all its submissions?')) return
     await supabase.from('drop_submissions').delete().eq('drop_id', id)
+    await supabase.from('profile_runs').delete().eq('drop_id', id)
     await supabase.from('drops').delete().eq('id', id)
     await load()
   }
@@ -266,9 +312,7 @@ export default function DropManagerPage() {
     setEditDropId(drop.id); setDropModal(true)
   }
 
-  function closeDropModal() {
-    setDropModal(false); setDropForm(EMPTY_DROP); setEditDropId(null); setNewItemKey(''); setNewItemName('')
-  }
+  function closeDropModal() { setDropModal(false); setDropForm(EMPTY_DROP); setEditDropId(null); setNewItemKey(''); setNewItemName('') }
 
   function addItem() {
     if (!newItemKey.trim()) return
@@ -280,13 +324,7 @@ export default function DropManagerPage() {
 
   function exportSubmissionsSummary(drop) {
     const subs = submissions[drop.id] || []
-    const rows = subs.map(s => ({
-      Username: users[s.user_id] || s.user_id,
-      Profiles: JSON.parse(s.profile_names || '[]').join(', '),
-      'Items Selected': JSON.parse(s.selected_items || '[]').join(', ') || 'All',
-      Notes: s.notes || '',
-      'Submitted At': format(new Date(s.submitted_at), 'dd MMM yyyy HH:mm')
-    }))
+    const rows = subs.map(s => ({ Username: users[s.user_id] || s.user_id, Profiles: JSON.parse(s.profile_names || '[]').join(', '), 'Items Selected': JSON.parse(s.selected_items || '[]').join(', ') || 'All', Notes: s.notes || '', 'Submitted At': format(new Date(s.submitted_at), 'dd MMM yyyy HH:mm') }))
     downloadCSV(rows, `${drop.name.replace(/\s+/g, '_')}_summary.csv`)
   }
 
@@ -311,6 +349,7 @@ export default function DropManagerPage() {
             const isExpanded = expandedDrop === drop.id
             const subs = submissions[drop.id] || []
             const items = drop.items || []
+            const dropRuns = runs[drop.id] || {}
 
             return (
               <div key={drop.id} className="vault-card">
@@ -349,6 +388,7 @@ export default function DropManagerPage() {
                 {isExpanded && (
                   <div className="mt-4 pt-4 border-t border-vault-border animate-fade-in">
                     {drop.notes && <div className="mb-3 p-3 bg-vault-gold/5 border border-vault-gold/20 rounded-xl"><p className="text-[10px] font-mono text-vault-gold uppercase tracking-widest mb-1">Admin Notes</p><p className="text-vault-text text-sm font-body">{drop.notes}</p></div>}
+
                     <div className="flex items-center gap-2 mb-3 flex-wrap">
                       <p className="text-xs font-mono text-vault-muted flex-1">{loadingSubs[drop.id] ? 'Loading...' : `${subs.length} submission${subs.length !== 1 ? 's' : ''}`}</p>
                       <button onClick={() => loadSubmissions(drop.id)} className="vault-btn-ghost text-xs px-2.5 py-1.5"><RefreshCw className="w-3 h-3" /> Refresh</button>
@@ -381,9 +421,10 @@ export default function DropManagerPage() {
                     ) : subs.length === 0 ? (
                       <p className="text-vault-muted text-xs font-mono text-center py-6">No submissions yet</p>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {subs.map(sub => {
                           const profileNames  = JSON.parse(sub.profile_names || '[]')
+                          const profileIds    = JSON.parse(sub.profile_ids   || '[]')
                           const selectedItems = JSON.parse(sub.selected_items || '[]')
                           const relevantItems = selectedItems.length > 0 ? (drop.items || []).filter(item => selectedItems.includes(item.key)) : (drop.items || [])
                           const pids      = relevantItems.map(item => item.pid).filter(Boolean)
@@ -392,15 +433,15 @@ export default function DropManagerPage() {
                           const copyLines = profileNames.map(pn => pidString ? `${username} — ${pn} — ${pidString}` : `${username} — ${pn}`).join('\n')
 
                           return (
-                            <div key={sub.id} className="bg-vault-bg rounded-xl px-3 py-2.5 border border-vault-border">
-                              <div className="flex items-start gap-3 flex-wrap">
+                            <div key={sub.id} className="bg-vault-bg rounded-xl border border-vault-border overflow-hidden">
+                              {/* Submission header */}
+                              <div className="flex items-start gap-3 flex-wrap px-3 pt-2.5 pb-2">
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-display text-vault-text">{username}</p>
-                                  <p className="text-xs font-mono text-vault-text-dim mt-0.5">{profileNames.length > 0 ? profileNames.join(', ') : 'No profiles'}</p>
                                   {selectedItems.length > 0 && <p className="text-xs font-mono text-vault-accent mt-0.5">Items: {selectedItems.join(', ')}</p>}
                                   {sub.notes && <p className="text-xs font-mono text-vault-gold mt-0.5">Note: {sub.notes}</p>}
                                   {pids.length > 0 && (
-                                    <div className="mt-2 p-2 bg-vault-bg rounded-lg border border-vault-gold/20">
+                                    <div className="mt-1.5 p-2 bg-vault-surface rounded-lg border border-vault-gold/20">
                                       <div className="flex items-center justify-between gap-2 mb-1">
                                         <p className="text-[10px] font-mono text-vault-gold uppercase tracking-widest">PIDs</p>
                                         <button onClick={() => { navigator.clipboard.writeText(copyLines); setCopied(sub.id); setTimeout(() => setCopied(null), 2000) }}
@@ -423,6 +464,55 @@ export default function DropManagerPage() {
                                   </button>
                                 </div>
                               </div>
+
+                              {/* ── Per-profile runner assignment ── */}
+                              <div className="border-t border-vault-border/50 px-3 py-2 space-y-1.5">
+                                <p className="text-[10px] font-mono text-vault-muted uppercase tracking-widest mb-2">Assign Runners</p>
+                                {profileNames.map((pName, idx) => {
+                                  const pid = profileIds[idx]
+                                  const existing = dropRuns[pid]
+                                  const isSaving = savingRun === pid
+
+                                  return (
+                                    <div key={pid || idx} className="flex items-center gap-2 flex-wrap">
+                                      {/* Profile name */}
+                                      <p className="text-xs font-mono text-vault-text flex-1 min-w-0 truncate">{pName}</p>
+
+                                      {/* Runner pills */}
+                                      {RUNNERS.map(r => {
+                                        const isAssigned = existing?.runner === r.key
+                                        return (
+                                          <button
+                                            key={r.key}
+                                            onClick={() => assignRunner(drop, sub, pid, pName, r.key)}
+                                            disabled={isSaving}
+                                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-mono font-semibold transition-all disabled:opacity-50"
+                                            style={isAssigned
+                                              ? { background: r.colour + '20', color: r.colour, border: `1px solid ${r.colour}50` }
+                                              : { background: 'transparent', color: '#5a5a7a', border: '1px solid #1a1a2e' }}>
+                                            {r.key === 'nirxv' ? <UserCheck className="w-3 h-3" /> : <Sword className="w-3 h-3" />}
+                                            {r.label}
+                                          </button>
+                                        )
+                                      })}
+
+                                      {/* Remove button — only shown when assigned */}
+                                      {existing && (
+                                        <button
+                                          onClick={() => removeRunner(drop, pid)}
+                                          disabled={isSaving}
+                                          className="p-1 text-vault-muted hover:text-vault-red transition-colors disabled:opacity-50"
+                                          title="Remove runner">
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+
+                                      {/* Saving spinner */}
+                                      {isSaving && <div className="w-3 h-3 border border-vault-accent border-t-transparent rounded-full animate-spin" />}
+                                    </div>
+                                  )
+                                })}
+                              </div>
                             </div>
                           )
                         })}
@@ -441,28 +531,20 @@ export default function DropManagerPage() {
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
           <div className="vault-card max-w-lg w-full animate-fade-in flex flex-col" style={{ maxHeight: '90vh' }}>
             <div className="flex items-center justify-between mb-5 shrink-0">
-              <div>
-                <h2 className="font-display text-xl text-vault-gold neon-gold">EXPORT PROFILE CSVs</h2>
-                <p className="text-vault-text-dim text-xs font-mono mt-0.5">{exportModal.name}</p>
-              </div>
+              <div><h2 className="font-display text-xl text-vault-gold neon-gold">EXPORT PROFILE CSVs</h2><p className="text-vault-text-dim text-xs font-mono mt-0.5">{exportModal.name}</p></div>
               <button onClick={() => setExportModal(null)}><X className="w-5 h-5 text-vault-muted" /></button>
             </div>
-
             <div className="overflow-y-auto flex-1 space-y-3 pr-1">
               {(() => {
                 const subs = submissions[exportModal.id] || []
                 if (!subs.length) return <p className="text-vault-muted text-sm text-center py-8">No submissions yet</p>
-
                 const comboMap = buildComboMap(exportModal)
                 const dropName = exportModal.name.replace(/\s+/g, '_')
-
                 return (
                   <>
                     <p className="text-[10px] font-mono text-vault-muted uppercase tracking-widest">Per-item files</p>
-
                     {Object.entries(comboMap).map(([comboKey, { itemDetails, profileCount }]) => (
                       <div key={comboKey} className="rounded-xl border border-vault-border bg-vault-bg p-3">
-                        {/* File name */}
                         <div className="flex items-start justify-between gap-3 mb-2">
                           <div className="flex items-center gap-2 min-w-0">
                             <FileDown className="w-4 h-4 text-vault-gold shrink-0 mt-0.5" />
@@ -470,41 +552,28 @@ export default function DropManagerPage() {
                           </div>
                           <span className="text-[10px] font-mono text-vault-accent shrink-0 mt-0.5">{profileCount} profile{profileCount !== 1 ? 's' : ''}</span>
                         </div>
-
-                        {/* Item breakdown as bullet list */}
                         <div className="ml-6 mb-3 space-y-0.5">
                           {itemDetails.map(({ key, name }) => (
                             <div key={key} className="flex items-center gap-2">
                               <span className="w-1.5 h-1.5 rounded-full bg-vault-gold shrink-0" />
-                              <span className="text-xs font-mono">
-                                <span className="text-vault-accent font-bold">{key}</span>
-                                {name && <span className="text-vault-text-dim ml-1.5">— {name}</span>}
-                              </span>
+                              <span className="text-xs font-mono"><span className="text-vault-accent font-bold">{key}</span>{name && <span className="text-vault-text-dim ml-1.5">— {name}</span>}</span>
                             </div>
                           ))}
                         </div>
-
-                        <button
-                          onClick={() => downloadSingleCombo(exportModal, comboKey)}
+                        <button onClick={() => downloadSingleCombo(exportModal, comboKey)}
                           className="w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-semibold transition-all"
                           style={{ background: 'rgba(255,230,0,0.08)', color: '#ffe600', border: '1px solid rgba(255,230,0,0.25)' }}>
                           <Download className="w-3.5 h-3.5" /> Download this file
                         </button>
                       </div>
                     ))}
-
-                    {/* Combined */}
                     <div className="rounded-xl border border-vault-accent/30 bg-vault-accent/5 p-3">
                       <div className="flex items-start justify-between gap-3 mb-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileDown className="w-4 h-4 text-vault-accent shrink-0 mt-0.5" />
-                          <p className="text-sm font-mono text-vault-accent truncate">{dropName}_COMBINED.csv</p>
-                        </div>
+                        <div className="flex items-center gap-2 min-w-0"><FileDown className="w-4 h-4 text-vault-accent shrink-0 mt-0.5" /><p className="text-sm font-mono text-vault-accent truncate">{dropName}_COMBINED.csv</p></div>
                         <span className="text-[10px] font-mono text-vault-accent shrink-0 mt-0.5">all profiles</span>
                       </div>
-                      <p className="text-xs font-mono text-vault-muted ml-6 mb-3">All profiles in one file with an ITEMS column showing what each person selected</p>
-                      <button
-                        onClick={() => downloadCombined(exportModal)}
+                      <p className="text-xs font-mono text-vault-muted ml-6 mb-3">All profiles in one file with an ITEMS column</p>
+                      <button onClick={() => downloadCombined(exportModal)}
                         className="w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-semibold transition-all"
                         style={{ background: 'rgba(0,200,255,0.08)', color: '#00c8ff', border: '1px solid rgba(0,200,255,0.25)' }}>
                         <Download className="w-3.5 h-3.5" /> Download combined
@@ -514,13 +583,10 @@ export default function DropManagerPage() {
                 )
               })()}
             </div>
-
             <div className="flex gap-2 justify-end mt-5 pt-4 border-t border-vault-border shrink-0">
               <button className="vault-btn-ghost" onClick={() => setExportModal(null)}>Close</button>
               <button className="vault-btn-primary" onClick={() => exportDropCSVs(exportModal)} disabled={exportLoading || !(submissions[exportModal.id]?.length)}>
-                {exportLoading
-                  ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Exporting all...</>
-                  : <><FileDown className="w-4 h-4" />Download All</>}
+                {exportLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Exporting all...</> : <><FileDown className="w-4 h-4" />Download All</>}
               </button>
             </div>
           </div>
