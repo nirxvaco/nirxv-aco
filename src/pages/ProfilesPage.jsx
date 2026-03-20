@@ -453,7 +453,7 @@ export default function ProfilesPage() {
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
         <div>
-          <h1 className="font-display font-extrabold text-2xl text-vault-text">Profiles</h1>
+          <h1 className="font-display text-3xl text-vault-accent neon-cyan">Profiles</h1>
           <p className="text-vault-text-dim text-sm font-body mt-0.5">{profiles.length} profile{profiles.length!==1?'s':''} stored</p>
         </div>
         <div className="sm:ml-auto flex gap-2 flex-wrap items-center">

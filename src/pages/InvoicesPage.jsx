@@ -198,7 +198,7 @@ export default function InvoicesPage() {
     <div className="max-w-4xl mx-auto animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-display font-extrabold text-2xl text-vault-text">Invoices</h1>
+          <h1 className="font-display text-3xl text-vault-accent neon-cyan">Invoices</h1>
           <p className="text-vault-text-dim text-sm font-body mt-0.5">
             {isAdmin ? `${invoices.length} invoice${invoices.length !== 1 ? 's' : ''} issued` : `${invoices.length} invoice${invoices.length !== 1 ? 's' : ''} from your admin`}
           </p>
