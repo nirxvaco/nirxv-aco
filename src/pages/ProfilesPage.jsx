@@ -10,7 +10,7 @@ import {
   Search, CreditCard, ChevronDown, ChevronUp, X, Save, AlertTriangle,
   Shuffle, ChevronLeft, ChevronRight, Copy, Check, RefreshCw, Zap,
   LayoutList, Table2, Folder, FolderPlus, Send, CheckSquare, Square,
-  Tag, Edit3
+  Tag, Edit3, MoreHorizontal
 } from 'lucide-react'
 
 // ── Address Jig Engine ────────────────────────────────────────────────────────
@@ -70,7 +70,6 @@ const GROUP_COLOURS = [
   '#ff9500','#ff6bcb','#7a8aff','#00d4aa','#ff6b35',
 ]
 
-// ── All editable fields for bulk edit ────────────────────────────────────────
 const BULK_EDIT_FIELDS = [
   { key: 'profile_name',        label: 'Profile Name',       type: 'text' },
   { key: 'email',               label: 'Email',              type: 'email' },
@@ -172,6 +171,9 @@ export default function ProfilesPage() {
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
   const [importLoading, setImportLoading] = useState(false)
 
+  // Mobile header overflow menu
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
+
   // Group modal
   const [groupModal, setGroupModal] = useState(false)
   const [groupForm, setGroupForm] = useState({ name: '', colour: '#00c8ff' })
@@ -188,7 +190,7 @@ export default function ProfilesPage() {
   const [selectedDropId, setSelectedDropId] = useState(null)
   const [submittingDrop, setSubmittingDrop] = useState(false)
 
-  // ── Bulk edit modal ───────────────────────────────────────────────────────
+  // Bulk edit modal
   const [bulkEditModal, setBulkEditModal] = useState(false)
   const [bulkEditField, setBulkEditField] = useState(BULK_EDIT_FIELDS[0].key)
   const [bulkEditValue, setBulkEditValue] = useState('')
@@ -290,11 +292,7 @@ export default function ProfilesPage() {
 
   // ── Duplicate profile ─────────────────────────────────────────────────────
   async function duplicateProfile(p) {
-    const duplicate = {
-      ...p,
-      profile_name: `${p.profile_name} (Copy)`,
-      user_id: user.id,
-    }
+    const duplicate = { ...p, profile_name: `${p.profile_name} (Copy)`, user_id: user.id }
     delete duplicate.id
     delete duplicate.created_at
     const encrypted = await encryptProfile(duplicate)
@@ -441,30 +439,93 @@ export default function ProfilesPage() {
 
   return (
     <div className="max-w-7xl mx-auto animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-        <div>
-          <h1 className="font-display text-3xl text-vault-accent neon-cyan">PROFILES</h1>
-          <p className="text-vault-text-dim text-sm font-body mt-0.5">{profiles.length} profile{profiles.length!==1?'s':''} stored</p>
-        </div>
-        <div className="sm:ml-auto flex gap-2 flex-wrap items-center">
-          <div className="flex rounded-lg border border-vault-border overflow-hidden">
-            <button onClick={()=>setView('list')} className={`p-2 transition-all ${view==='list'?'bg-vault-accent/20 text-vault-accent':'text-vault-muted hover:text-vault-text'}`} title="List view"><LayoutList className="w-4 h-4"/></button>
-            <button onClick={()=>setView('spreadsheet')} className={`p-2 transition-all ${view==='spreadsheet'?'bg-vault-accent/20 text-vault-accent':'text-vault-muted hover:text-vault-text'}`} title="Spreadsheet view"><Table2 className="w-4 h-4"/></button>
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="mb-4">
+        {/* Title row */}
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h1 className="font-display text-2xl sm:text-3xl text-vault-accent neon-cyan">PROFILES</h1>
+            <p className="text-vault-text-dim text-xs sm:text-sm font-body mt-0.5">{profiles.length} profile{profiles.length!==1?'s':''} stored</p>
           </div>
-          <label className={`vault-btn-ghost cursor-pointer ${importLoading?'opacity-50':''}`}>
-            <Upload className="w-4 h-4"/>{importLoading?'Importing...':'Import CSV'}
-            <input type="file" accept=".csv" className="hidden" onChange={handleImport} disabled={importLoading}/>
-          </label>
-          <button className="vault-btn-ghost" onClick={()=>exportCSV(profiles)} disabled={!profiles.length}><Download className="w-4 h-4"/> Export CSV</button>
-          <button className="vault-btn-ghost" onClick={()=>setGroupModal(true)}><FolderPlus className="w-4 h-4"/> New Group</button>
-          <button className="vault-btn-primary" onClick={openNew}><Plus className="w-4 h-4"/> New Profile</button>
+
+          {/* Mobile: New Profile + overflow menu; Desktop: full button row */}
+          <div className="flex items-center gap-2">
+            {/* View toggle — always visible */}
+            <div className="flex rounded-lg border border-vault-border overflow-hidden">
+              <button onClick={()=>setView('list')} className={`p-2 transition-all ${view==='list'?'bg-vault-accent/20 text-vault-accent':'text-vault-muted hover:text-vault-text'}`} title="List view"><LayoutList className="w-4 h-4"/></button>
+              <button onClick={()=>setView('spreadsheet')} className={`p-2 transition-all ${view==='spreadsheet'?'bg-vault-accent/20 text-vault-accent':'text-vault-muted hover:text-vault-text'}`} title="Spreadsheet view"><Table2 className="w-4 h-4"/></button>
+            </div>
+
+            {/* Desktop-only buttons */}
+            <div className="hidden sm:flex items-center gap-2">
+              <label className={`vault-btn-ghost cursor-pointer ${importLoading?'opacity-50':''}`}>
+                <Upload className="w-4 h-4"/>{importLoading?'Importing...':'Import CSV'}
+                <input type="file" accept=".csv" className="hidden" onChange={handleImport} disabled={importLoading}/>
+              </label>
+              <button className="vault-btn-ghost" onClick={()=>exportCSV(profiles)} disabled={!profiles.length}><Download className="w-4 h-4"/> Export CSV</button>
+              <button className="vault-btn-ghost" onClick={()=>setGroupModal(true)}><FolderPlus className="w-4 h-4"/> New Group</button>
+            </div>
+
+            {/* Mobile overflow menu button */}
+            <button className="sm:hidden p-2 rounded-lg border border-vault-border text-vault-muted hover:text-vault-text hover:bg-vault-border transition-all" onClick={()=>setHeaderMenuOpen(v=>!v)}>
+              <MoreHorizontal className="w-4 h-4"/>
+            </button>
+
+            <button className="vault-btn-primary" onClick={openNew}><Plus className="w-4 h-4"/><span className="hidden xs:inline"> New Profile</span><span className="xs:hidden">New</span></button>
+          </div>
+        </div>
+
+        {/* Mobile overflow menu (dropdown) */}
+        {headerMenuOpen && (
+          <div className="sm:hidden flex flex-col gap-2 p-3 rounded-xl border border-vault-border bg-vault-surface animate-fade-in mb-3">
+            <label className={`vault-btn-ghost cursor-pointer justify-center ${importLoading?'opacity-50':''}`}>
+              <Upload className="w-4 h-4"/>{importLoading?'Importing...':'Import CSV'}
+              <input type="file" accept=".csv" className="hidden" onChange={e=>{handleImport(e);setHeaderMenuOpen(false)}} disabled={importLoading}/>
+            </label>
+            <button className="vault-btn-ghost justify-center" onClick={()=>{exportCSV(profiles);setHeaderMenuOpen(false)}} disabled={!profiles.length}><Download className="w-4 h-4"/> Export CSV</button>
+            <button className="vault-btn-ghost justify-center" onClick={()=>{setGroupModal(true);setHeaderMenuOpen(false)}}><FolderPlus className="w-4 h-4"/> New Group</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Groups: horizontal scroll on mobile, sidebar on desktop ─────────── */}
+      {/* Mobile groups strip */}
+      <div className="sm:hidden mb-3 -mx-0">
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          <button
+            onClick={()=>setSelectedGroup(null)}
+            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-body border transition-all ${selectedGroup===null?'bg-vault-accent/10 text-vault-accent border-vault-accent/30':'text-vault-text-dim border-vault-border hover:bg-vault-border'}`}
+          >
+            <CreditCard className="w-3 h-3"/>All
+            <span className="font-mono opacity-60">{profiles.length}</span>
+          </button>
+          <button
+            onClick={()=>setSelectedGroup('ungrouped')}
+            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-body border transition-all ${selectedGroup==='ungrouped'?'bg-vault-accent/10 text-vault-accent border-vault-accent/30':'text-vault-text-dim border-vault-border hover:bg-vault-border'}`}
+          >
+            <Folder className="w-3 h-3"/>Ungrouped
+            <span className="font-mono opacity-60">{profiles.filter(p=>!p.group_id).length}</span>
+          </button>
+          {groups.map(g => (
+            <button
+              key={g.id}
+              onClick={()=>setSelectedGroup(g.id)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-body border transition-all`}
+              style={selectedGroup===g.id?{borderColor:g.colour,background:g.colour+'20',color:g.colour}:{borderColor:'var(--vault-border)',color:'var(--vault-text-dim)'}}
+            >
+              <div className="w-2 h-2 rounded-full shrink-0" style={{background:g.colour}}/>
+              {g.name}
+              <span className="font-mono opacity-60">{profiles.filter(p=>p.group_id===g.id).length}</span>
+            </button>
+          ))}
         </div>
       </div>
 
+      {/* Desktop: sidebar + main layout */}
       <div className="flex gap-4">
-        {/* Groups sidebar */}
-        <div className="w-44 shrink-0 space-y-1">
+        {/* Desktop groups sidebar */}
+        <div className="hidden sm:block w-44 shrink-0 space-y-1">
           <p className="text-[10px] font-mono text-vault-muted uppercase tracking-widest mb-2 px-1">Groups</p>
           <button onClick={()=>setSelectedGroup(null)} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-body transition-all ${selectedGroup===null?'bg-vault-accent/10 text-vault-accent border border-vault-accent/30':'text-vault-text-dim hover:bg-vault-border hover:text-vault-text'}`}>
             <CreditCard className="w-3.5 h-3.5 shrink-0"/><span className="truncate">All Profiles</span><span className="ml-auto text-[10px] font-mono opacity-60">{profiles.length}</span>
@@ -491,21 +552,27 @@ export default function ProfilesPage() {
         <div className="flex-1 min-w-0">
           {/* Search + bulk actions bar */}
           <div className="flex gap-2 mb-3 flex-wrap items-center">
-            <div className="relative flex-1 min-w-[180px]">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-vault-muted"/>
-              <input className="vault-input pl-9" placeholder="Search profiles..." value={search} onChange={e=>setSearch(e.target.value)}/>
+              <input className="vault-input pl-9 w-full" placeholder="Search profiles..." value={search} onChange={e=>setSearch(e.target.value)}/>
             </div>
-            {someSelected && (
-              <div className="flex gap-2 flex-wrap animate-fade-in">
-                <span className="text-xs font-mono text-vault-accent self-center">{selectedIds.size} selected</span>
-                <button onClick={()=>{ setBulkEditField(BULK_EDIT_FIELDS[0].key); setBulkEditValue(''); setBulkEditModal(true) }} className="vault-btn-ghost text-xs px-2.5 py-1.5"><Edit3 className="w-3 h-3"/> Edit Field</button>
-                <button onClick={()=>setAssignGroupModal(true)} className="vault-btn-ghost text-xs px-2.5 py-1.5"><Tag className="w-3 h-3"/> Assign Group</button>
-                <button onClick={bulkExport} className="vault-btn-ghost text-xs px-2.5 py-1.5"><Download className="w-3 h-3"/> Export</button>
-                <button onClick={loadOpenDrops} className="vault-btn-ghost text-xs px-2.5 py-1.5"><Send className="w-3 h-3"/> Submit to Drop</button>
-                <button onClick={()=>setBulkDeleteConfirm(true)} className="vault-btn-ghost text-xs px-2.5 py-1.5 text-vault-red border-vault-red/30 hover:bg-vault-red/10"><Trash2 className="w-3 h-3"/> Delete</button>
-              </div>
-            )}
           </div>
+
+          {/* Bulk action bar — appears when items selected */}
+          {someSelected && (
+            <div className="mb-3 p-2.5 rounded-xl border border-vault-accent/30 bg-vault-accent/5 animate-fade-in">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-mono text-vault-accent">{selectedIds.size} selected</span>
+                <div className="flex gap-1.5 flex-wrap">
+                  <button onClick={()=>{ setBulkEditField(BULK_EDIT_FIELDS[0].key); setBulkEditValue(''); setBulkEditModal(true) }} className="vault-btn-ghost text-xs px-2.5 py-1.5"><Edit3 className="w-3 h-3"/><span className="hidden xs:inline"> Edit Field</span></button>
+                  <button onClick={()=>setAssignGroupModal(true)} className="vault-btn-ghost text-xs px-2.5 py-1.5"><Tag className="w-3 h-3"/><span className="hidden xs:inline"> Group</span></button>
+                  <button onClick={bulkExport} className="vault-btn-ghost text-xs px-2.5 py-1.5"><Download className="w-3 h-3"/><span className="hidden xs:inline"> Export</span></button>
+                  <button onClick={loadOpenDrops} className="vault-btn-ghost text-xs px-2.5 py-1.5"><Send className="w-3 h-3"/><span className="hidden xs:inline"> Drop</span></button>
+                  <button onClick={()=>setBulkDeleteConfirm(true)} className="vault-btn-ghost text-xs px-2.5 py-1.5 text-vault-red border-vault-red/30 hover:bg-vault-red/10"><Trash2 className="w-3 h-3"/></button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {loading ? (
             <div className="flex justify-center py-16"><div className="w-8 h-8 border-2 border-vault-accent border-t-transparent rounded-full animate-spin"/></div>
@@ -577,41 +644,52 @@ export default function ProfilesPage() {
                 const isSel = selectedIds.has(p.id)
                 return (
                   <div key={p.id} className={`vault-card hover:border-vault-accent/30 transition-colors ${isSel ? 'border-vault-accent/40 bg-vault-accent/5' : ''}`}>
-                    <div className="flex items-center gap-3">
-                      <button onClick={()=>toggleSelect(p.id)} className="text-vault-muted hover:text-vault-accent transition-colors shrink-0">
+                    {/* Card top row */}
+                    <div className="flex items-center gap-2.5">
+                      <button onClick={()=>toggleSelect(p.id)} className="text-vault-muted hover:text-vault-accent transition-colors shrink-0 p-1 -ml-1">
                         {isSel ? <CheckSquare className="w-4 h-4 text-vault-accent"/> : <Square className="w-4 h-4"/>}
                       </button>
-                      <div className="w-10 h-10 rounded-xl bg-vault-accent/10 border border-vault-accent/20 flex items-center justify-center shrink-0" style={grp ? { borderColor: grp.colour + '40', background: grp.colour + '15' } : {}}>
-                        <CreditCard className="w-5 h-5" style={grp ? { color: grp.colour } : { color: 'var(--vault-accent)' }}/>
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-vault-accent/10 border border-vault-accent/20 flex items-center justify-center shrink-0" style={grp ? { borderColor: grp.colour + '40', background: grp.colour + '15' } : {}}>
+                        <CreditCard className="w-4 h-4 sm:w-5 sm:h-5" style={grp ? { color: grp.colour } : { color: 'var(--vault-accent)' }}/>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-display font-semibold text-vault-text truncate">{p.profile_name}</p>
-                          {grp && <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border" style={{ color: grp.colour, borderColor: grp.colour + '40', background: grp.colour + '15' }}>{grp.name}</span>}
+                          <p className="font-display font-semibold text-vault-text text-sm truncate">{p.profile_name}</p>
+                          {grp && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full border" style={{ color: grp.colour, borderColor: grp.colour + '40', background: grp.colour + '15' }}>{grp.name}</span>}
                         </div>
                         <p className="text-vault-text-dim text-xs font-mono truncate">{p.email}</p>
                       </div>
-                      <div className="hidden sm:flex items-center gap-2">
-                        <span className="font-mono text-sm text-vault-text-dim">{revealedCards.has(p.id) ? p.card_number : maskCard(p.card_number)}</span>
-                        <button onClick={()=>toggleReveal(p.id)} className="text-vault-muted hover:text-vault-text-dim transition-colors">
-                          {revealedCards.has(p.id) ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-1 ml-2">
+                      {/* Action buttons — always inline on right */}
+                      <div className="flex items-center gap-0.5 ml-1 shrink-0">
                         <button onClick={()=>setExpandedId(expandedId===p.id?null:p.id)} className="p-2 text-vault-muted hover:text-vault-text rounded-lg hover:bg-vault-border transition-all">
                           {expandedId===p.id ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
                         </button>
                         <button onClick={()=>openEdit(p)} className="p-2 text-vault-muted hover:text-vault-accent rounded-lg hover:bg-vault-accent/10 transition-all"><Pencil className="w-4 h-4"/></button>
-                        <button onClick={()=>duplicateProfile(p)} className="p-2 text-vault-muted hover:text-vault-green rounded-lg hover:bg-vault-green/10 transition-all" title="Duplicate profile"><Copy className="w-4 h-4"/></button>
-                        <button onClick={()=>exportCSV([p])} className="p-2 text-vault-muted hover:text-vault-green rounded-lg hover:bg-vault-green/10 transition-all"><Download className="w-4 h-4"/></button>
+                        {/* Secondary actions hidden on small mobile, shown on sm+ */}
+                        <button onClick={()=>duplicateProfile(p)} className="hidden sm:block p-2 text-vault-muted hover:text-vault-green rounded-lg hover:bg-vault-green/10 transition-all" title="Duplicate profile"><Copy className="w-4 h-4"/></button>
+                        <button onClick={()=>exportCSV([p])} className="hidden sm:block p-2 text-vault-muted hover:text-vault-green rounded-lg hover:bg-vault-green/10 transition-all"><Download className="w-4 h-4"/></button>
                         <button onClick={()=>setDeleteConfirm(p.id)} className="p-2 text-vault-muted hover:text-vault-red rounded-lg hover:bg-vault-red/10 transition-all"><Trash2 className="w-4 h-4"/></button>
                       </div>
                     </div>
+
+                    {/* Expanded details */}
                     {expandedId===p.id && (
-                      <div className="mt-4 pt-4 border-t border-vault-border grid grid-cols-2 sm:grid-cols-3 gap-3 animate-fade-in">
-                        {[['Phone',p.phone],['Ship To',`${p.shipping_first_name} ${p.shipping_last_name}`],['Address',`${p.shipping_address}, ${p.shipping_city}`],['ZIP',p.shipping_zip],['Country',p.shipping_country],['Card Type',p.card_type],['Card #',revealedCards.has(p.id)?p.card_number:maskCard(p.card_number)],['Expiry',`${p.card_month}/${p.card_year}`],['CVV',revealedCards.has(p.id)?p.card_cvv:'•••']].map(([k,v])=>(
-                          <div key={k}><p className="text-[10px] font-mono text-vault-muted uppercase tracking-widest">{k}</p><p className="text-sm font-body text-vault-text mt-0.5">{v||'—'}</p></div>
-                        ))}
+                      <div className="mt-3 pt-3 border-t border-vault-border animate-fade-in">
+                        {/* Card number row with reveal */}
+                        <div className="flex items-center gap-2 mb-3 px-1">
+                          <span className="font-mono text-sm text-vault-text-dim flex-1 truncate">{revealedCards.has(p.id) ? p.card_number : maskCard(p.card_number)}</span>
+                          <button onClick={()=>toggleReveal(p.id)} className="text-vault-muted hover:text-vault-text-dim transition-colors p-1">
+                            {revealedCards.has(p.id) ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
+                          </button>
+                          {/* Mobile-only duplicate/export buttons */}
+                          <button onClick={()=>duplicateProfile(p)} className="sm:hidden p-1 text-vault-muted hover:text-vault-green transition-colors" title="Duplicate"><Copy className="w-4 h-4"/></button>
+                          <button onClick={()=>exportCSV([p])} className="sm:hidden p-1 text-vault-muted hover:text-vault-green transition-colors"><Download className="w-4 h-4"/></button>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {[['Phone',p.phone],['Ship To',`${p.shipping_first_name} ${p.shipping_last_name}`],['Address',`${p.shipping_address}, ${p.shipping_city}`],['ZIP',p.shipping_zip],['Country',p.shipping_country],['Card Type',p.card_type],['Expiry',`${p.card_month}/${p.card_year}`],['CVV',revealedCards.has(p.id)?p.card_cvv:'•••']].map(([k,v])=>(
+                            <div key={k}><p className="text-[10px] font-mono text-vault-muted uppercase tracking-widest">{k}</p><p className="text-sm font-body text-vault-text mt-0.5 break-words">{v||'—'}</p></div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -624,8 +702,8 @@ export default function ProfilesPage() {
 
       {/* ── Bulk edit modal ── */}
       {bulkEditModal && createPortal(
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="vault-card max-w-sm w-full animate-fade-in">
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="vault-card w-full sm:max-w-sm rounded-b-none sm:rounded-2xl animate-fade-in">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-display font-bold text-vault-text">Bulk Edit Field</h3>
@@ -650,13 +728,13 @@ export default function ProfilesPage() {
                 ) : (
                   <input className="vault-input" type={selectedFieldDef?.type || 'text'} placeholder={`New ${selectedFieldDef?.label || 'value'}...`} value={bulkEditValue} onChange={e=>setBulkEditValue(e.target.value)}/>
                 )}
-                <p className="text-vault-muted text-xs font-mono mt-1">This value will overwrite the existing value on all {selectedIds.size} selected profiles</p>
+                <p className="text-vault-muted text-xs font-mono mt-1">Overwrites all {selectedIds.size} selected profiles</p>
               </div>
             </div>
             <div className="flex gap-2 justify-end">
               <button className="vault-btn-ghost" onClick={()=>setBulkEditModal(false)}>Cancel</button>
               <button className="vault-btn-primary" onClick={handleBulkEdit} disabled={bulkEditing || !bulkEditValue}>
-                {bulkEditing ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Saving...</> : <><Save className="w-4 h-4"/>Apply to {selectedIds.size} profiles</>}
+                {bulkEditing ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Saving...</> : <><Save className="w-4 h-4"/>Apply to {selectedIds.size}</>}
               </button>
             </div>
           </div>
@@ -665,8 +743,8 @@ export default function ProfilesPage() {
 
       {/* ── Delete single confirm ── */}
       {deleteConfirm && createPortal(
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="vault-card max-w-sm w-full animate-fade-in">
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="vault-card w-full sm:max-w-sm rounded-b-none sm:rounded-2xl animate-fade-in">
             <div className="flex items-center gap-3 mb-3"><AlertTriangle className="w-5 h-5 text-vault-red shrink-0"/><h3 className="font-display font-bold text-vault-text">Delete Profile?</h3></div>
             <p className="text-vault-text-dim text-sm font-body mb-5">This cannot be undone.</p>
             <div className="flex gap-2 justify-end">
@@ -679,8 +757,8 @@ export default function ProfilesPage() {
 
       {/* ── Bulk delete confirm ── */}
       {bulkDeleteConfirm && createPortal(
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="vault-card max-w-sm w-full animate-fade-in">
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="vault-card w-full sm:max-w-sm rounded-b-none sm:rounded-2xl animate-fade-in">
             <div className="flex items-center gap-3 mb-3"><AlertTriangle className="w-5 h-5 text-vault-red shrink-0"/><h3 className="font-display font-bold text-vault-text">Delete {selectedIds.size} Profiles?</h3></div>
             <p className="text-vault-text-dim text-sm font-body mb-5">This cannot be undone. All selected profiles will be permanently removed.</p>
             <div className="flex gap-2 justify-end">
@@ -693,14 +771,14 @@ export default function ProfilesPage() {
 
       {/* ── Assign group modal ── */}
       {assignGroupModal && createPortal(
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="vault-card max-w-sm w-full animate-fade-in">
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="vault-card w-full sm:max-w-sm rounded-b-none sm:rounded-2xl animate-fade-in">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display font-bold text-vault-text">Assign to Group</h3>
               <button onClick={()=>setAssignGroupModal(false)}><X className="w-5 h-5 text-vault-muted"/></button>
             </div>
             <p className="text-vault-text-dim text-xs font-mono mb-4">{selectedIds.size} profile{selectedIds.size!==1?'s':''} selected</p>
-            <div className="space-y-2 mb-4">
+            <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
               <button onClick={()=>setAssigningGroupId(null)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-body transition-all ${assigningGroupId===null?'bg-vault-accent/10 border-vault-accent/40 text-vault-accent':'border-vault-border text-vault-text-dim hover:bg-vault-border'}`}>
                 <Folder className="w-4 h-4"/> No Group (remove from group)
               </button>
@@ -709,7 +787,7 @@ export default function ProfilesPage() {
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-body transition-all ${assigningGroupId===g.id?'border-opacity-100':'border-vault-border text-vault-text-dim hover:bg-vault-border'}`}
                   style={assigningGroupId===g.id?{borderColor:g.colour,background:g.colour+'15',color:g.colour}:{}}>
                   <div className="w-3 h-3 rounded-full shrink-0" style={{background:g.colour}}/>{g.name}
-                  <span className="ml-auto text-[10px] font-mono opacity-60">{profiles.filter(p=>p.group_id===g.id).length} profiles</span>
+                  <span className="ml-auto text-[10px] font-mono opacity-60">{profiles.filter(p=>p.group_id===g.id).length}</span>
                 </button>
               ))}
             </div>
@@ -723,8 +801,8 @@ export default function ProfilesPage() {
 
       {/* ── Submit to drop modal ── */}
       {dropModal && createPortal(
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="vault-card max-w-sm w-full animate-fade-in">
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="vault-card w-full sm:max-w-sm rounded-b-none sm:rounded-2xl animate-fade-in">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display font-bold text-vault-text">Submit to Drop</h3>
               <button onClick={()=>setDropModal(false)}><X className="w-5 h-5 text-vault-muted"/></button>
@@ -733,7 +811,7 @@ export default function ProfilesPage() {
             {openDrops.length === 0 ? (
               <p className="text-vault-muted text-sm text-center py-4">No open drops right now</p>
             ) : (
-              <div className="space-y-2 mb-4">
+              <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
                 {openDrops.map(d => (
                   <button key={d.id} onClick={()=>setSelectedDropId(d.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-body transition-all ${selectedDropId===d.id?'bg-vault-accent/10 border-vault-accent/40 text-vault-accent':'border-vault-border text-vault-text-dim hover:bg-vault-border'}`}>
@@ -755,8 +833,8 @@ export default function ProfilesPage() {
 
       {/* ── Group create/edit modal ── */}
       {groupModal && createPortal(
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="vault-card max-w-sm w-full animate-fade-in">
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="vault-card w-full sm:max-w-sm rounded-b-none sm:rounded-2xl animate-fade-in">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display font-bold text-vault-text">{editingGroupId?'Edit Group':'New Group'}</h3>
               <button onClick={()=>{setGroupModal(false);setGroupForm({name:'',colour:'#00c8ff'});setEditingGroupId(null)}}><X className="w-5 h-5 text-vault-muted"/></button>
@@ -794,8 +872,8 @@ export default function ProfilesPage() {
 
       {/* ── Create/Edit profile modal ── */}
       {modalOpen && createPortal(
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="vault-card w-full max-w-2xl flex flex-col animate-fade-in" style={{ maxHeight: '90vh' }}>
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="vault-card w-full sm:max-w-2xl flex flex-col rounded-b-none sm:rounded-2xl animate-fade-in" style={{ maxHeight: '92vh' }}>
             <div className="flex items-center justify-between mb-6 shrink-0">
               <h2 className="font-display font-bold text-xl text-vault-text">{editingId?'Edit Profile':'New Profile'}</h2>
               <button onClick={closeModal} className="text-vault-muted hover:text-vault-text transition-colors"><X className="w-5 h-5"/></button>
