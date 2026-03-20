@@ -20,7 +20,16 @@ const SITE_COLOURS = {
 function siteColour(site) { return SITE_COLOURS[site] || SITE_COLOURS['Other'] }
 
 export default function DropsPage() {
-  const { user, profile } = useAuth()
+  const { user, profile, isAdmin } = useAuth()
+
+  if (isAdmin) return (
+    <div className="max-w-4xl mx-auto animate-fade-in">
+      <div className="vault-card text-center py-20">
+        <p className="font-display text-2xl text-vault-text-dim mb-2">ADMIN ACCOUNT</p>
+        <p className="text-vault-muted text-sm font-mono">Use the Drop Manager to create and manage drops.</p>
+      </div>
+    </div>
+  )
   const [drops, setDrops]             = useState([])
   const [submissions, setSubmissions] = useState({})
   const [myProfiles, setMyProfiles]   = useState([])

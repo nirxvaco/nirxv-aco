@@ -152,7 +152,16 @@ function EditableCell({ value, onSave, type='text', options, masked=false, revea
 }
 
 export default function ProfilesPage() {
-  const { user, profile: userProfile } = useAuth()
+  const { user, profile: userProfile, isAdmin } = useAuth()
+
+  if (isAdmin) return (
+    <div className="max-w-5xl mx-auto animate-fade-in">
+      <div className="vault-card text-center py-20">
+        <p className="font-display text-2xl text-vault-text-dim mb-2">ADMIN ACCOUNT</p>
+        <p className="text-vault-muted text-sm font-mono">Admins don't have personal profiles.<br />Use the Admin panel to view and manage user profiles.</p>
+      </div>
+    </div>
+  )
   const [profiles, setProfiles] = useState([])
   const [groups, setGroups] = useState([])
   const [loading, setLoading] = useState(true)

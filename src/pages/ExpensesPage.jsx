@@ -19,7 +19,16 @@ const COLORS = ['#00c8ff', '#ffe600', '#00e396', '#b44fff', '#ff9f43', '#ff3355'
 const EMPTY = { label: '', amount: '', category: 'Info Group / Cook Group', recurring: false, date: format(new Date(), 'yyyy-MM-dd'), notes: '' }
 
 export default function ExpensesPage() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
+
+  if (isAdmin) return (
+    <div className="max-w-5xl mx-auto animate-fade-in">
+      <div className="vault-card text-center py-20">
+        <p className="font-display text-2xl text-vault-text-dim mb-2">ADMIN ACCOUNT</p>
+        <p className="text-vault-muted text-sm font-mono">Admins don't have personal expenses.<br />Use the Admin panel to view user data.</p>
+      </div>
+    </div>
+  )
   const [expenses, setExpenses] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)

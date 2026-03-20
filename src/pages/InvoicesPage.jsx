@@ -20,6 +20,16 @@ const EMPTY = {
 
 export default function InvoicesPage() {
   const { user, isAdmin } = useAuth()
+
+  if (isAdmin) return (
+    <div className="max-w-4xl mx-auto animate-fade-in">
+      <div className="vault-card text-center py-20">
+        <p className="font-display text-2xl text-vault-text-dim mb-2">ADMIN ACCOUNT</p>
+        <p className="text-vault-muted text-sm font-mono">Use the Admin panel to manage user invoices.</p>
+      </div>
+    </div>
+  )
+
   const [invoices, setInvoices]         = useState([])
   const [users, setUsers]               = useState([])
   const [loading, setLoading]           = useState(true)

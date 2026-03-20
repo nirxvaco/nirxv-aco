@@ -9,7 +9,16 @@ const RUNNER_STYLES = {
 }
 
 export default function MyRunsPage() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
+
+  if (isAdmin) return (
+    <div className="max-w-3xl mx-auto animate-fade-in">
+      <div className="vault-card text-center py-20">
+        <p className="font-display text-2xl text-vault-text-dim mb-2">ADMIN ACCOUNT</p>
+        <p className="text-vault-muted text-sm font-mono">Use the Drop Manager to view all profile runs.</p>
+      </div>
+    </div>
+  )
   const [runs, setRuns]       = useState([])
   const [loading, setLoading] = useState(true)
 

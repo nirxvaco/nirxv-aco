@@ -27,7 +27,16 @@ function generateSKU() {
 }
 
 export default function ProfitPage() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
+
+  if (isAdmin) return (
+    <div className="max-w-5xl mx-auto animate-fade-in">
+      <div className="vault-card text-center py-20">
+        <p className="font-display text-2xl text-vault-text-dim mb-2">ADMIN ACCOUNT</p>
+        <p className="text-vault-muted text-sm font-mono">Admins don't have personal profit entries.<br />Use the Admin panel to view user data.</p>
+      </div>
+    </div>
+  )
   const [entries, setEntries]   = useState([])
   const [loading, setLoading]   = useState(true)
   const [modal, setModal]       = useState(false)
