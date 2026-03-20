@@ -30,12 +30,15 @@ export default function LeaderboardPage() {
     setLoading(true)
     const start = `${selectedMonth}-01`
     const end   = format(endOfMonth(new Date(`${selectedMonth}-01`)), 'yyyy-MM-dd')
+
+    // Only select safe fields from the join — no email, no role, no uuid exposure
     const { data, error } = await supabase
       .from('checkouts')
-      .select('*, user_profiles!checkouts_user_id_fkey(username, anonymous_on_leaderboard)')
+      .select('id, user_id, item_name, checkouts, estimated_profit, month_date, user_profiles!checkouts_user_id_fkey(username, anonymous_on_leaderboard)')
       .gte('month_date', start)
       .lte('month_date', end)
       .order('checkouts', { ascending: false })
+
     if (error) console.error('LEADERBOARD LOAD ERROR:', error)
     setEntries(data || [])
     setLoading(false)
@@ -45,20 +48,25 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     if (isAdmin) {
-      supabase.from('user_profiles').select('id, username').neq('id', user.id).then(({ data }) => setUsers(data || []))
+      // Admin user picker — only fetch id and username, nothing else
+      supabase
+        .from('leaderboard_view')
+        .select('id, username')
+        .neq('id', user.id)
+        .then(({ data }) => setUsers(data || []))
     }
   }, [isAdmin, user.id])
 
-  // Aggregate entries by user, respecting their anonymous preference
+  // Aggregate entries by user, respecting anonymous preference
   const aggregated = Object.values(
     entries.reduce((acc, e) => {
       const uid = e.user_id
       const isAnon = e.user_profiles?.anonymous_on_leaderboard
       if (!acc[uid]) acc[uid] = {
-        user_id: uid,
-        username: isAnon ? 'Anonymous' : (e.user_profiles?.username || 'Unknown'),
+        user_id:   uid,
+        username:  isAnon ? 'Anonymous' : (e.user_profiles?.username || 'Unknown'),
         checkouts: 0,
-        profit: 0,
+        profit:    0,
         anonymous: isAnon,
       }
       acc[uid].checkouts += e.checkouts || 0
@@ -67,32 +75,40 @@ export default function LeaderboardPage() {
     }, {})
   ).sort((a, b) => b.checkouts - a.checkouts)
 
-  const myEntry = aggregated.find(e => e.user_id === user.id)
+  const myEntry    = aggregated.find(e => e.user_id === user.id)
+  const myEntries  = entries.filter(e => e.user_id === user.id)
 
   async function save() {
     if (!form.item_name || !form.checkouts) return
     setSaving(true)
     const targetId = isAdmin ? (form.target_user_id || user.id) : user.id
     const payload = {
-      item_name: form.item_name,
-      checkouts: parseInt(form.checkouts),
+      item_name:        form.item_name,
+      checkouts:        parseInt(form.checkouts),
       estimated_profit: form.estimated_profit ? parseFloat(form.estimated_profit) : 0,
-      user_id: targetId,
-      month_date: `${form.month}-01`,
+      user_id:          targetId,
+      month_date:       `${form.month}-01`,
     }
     const { error } = await supabase.from('checkouts').insert(payload)
     if (error) console.error('LEADERBOARD INSERT ERROR:', error)
     await load(); closeModal(); setSaving(false)
   }
 
-  async function del(id) { await supabase.from('checkouts').delete().eq('id', id); await load() }
+  async function del(id) {
+    await supabase.from('checkouts').delete().eq('id', id)
+    await load()
+  }
 
   function closeModal() { setModal(false); setForm(EMPTY) }
 
   async function saveAnonPref(val) {
     setSavingPref(true)
     setAnonPref(val)
-    await supabase.from('user_profiles').update({ anonymous_on_leaderboard: val }).eq('id', user.id)
+    // Only updating own row — safe fields only
+    await supabase
+      .from('user_profiles')
+      .update({ anonymous_on_leaderboard: val })
+      .eq('id', user.id)
     setSavingPref(false)
   }
 
@@ -100,8 +116,6 @@ export default function LeaderboardPage() {
     const d = new Date(); d.setMonth(d.getMonth() - i)
     return format(d, 'yyyy-MM')
   })
-
-  const myEntries = entries.filter(e => e.user_id === user.id)
 
   return (
     <div className="max-w-3xl mx-auto animate-fade-in">
@@ -123,7 +137,7 @@ export default function LeaderboardPage() {
         </div>
       </div>
 
-      {/* Anonymous preference (users only) */}
+      {/* Anonymous preference (non-admin users only) */}
       {!isAdmin && (
         <div className="vault-card mb-6 flex items-center gap-4">
           <EyeOff className="w-5 h-5 text-vault-text-dim shrink-0" />
@@ -140,7 +154,7 @@ export default function LeaderboardPage() {
         </div>
       )}
 
-      {/* My rank */}
+      {/* My rank card */}
       {myEntry && (
         <div className="vault-card mb-6 border-vault-accent/30 animate-pulse-glow">
           <div className="flex items-center gap-3">
@@ -159,12 +173,16 @@ export default function LeaderboardPage() {
 
       {/* Rankings */}
       {loading ? (
-        <div className="flex justify-center py-16"><div className="w-8 h-8 border-2 border-vault-accent border-t-transparent rounded-full animate-spin" /></div>
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 border-2 border-vault-accent border-t-transparent rounded-full animate-spin" />
+        </div>
       ) : aggregated.length === 0 ? (
         <div className="vault-card text-center py-16">
           <Trophy className="w-10 h-10 text-vault-muted mx-auto mb-3" />
           <p className="text-vault-text font-display font-semibold">No entries yet</p>
-          <p className="text-vault-text-dim text-sm mt-1">{isAdmin ? 'Log the first run above' : 'Your admin will post results here after drops'}</p>
+          <p className="text-vault-text-dim text-sm mt-1">
+            {isAdmin ? 'Log the first run above' : 'Your admin will post results here after drops'}
+          </p>
         </div>
       ) : (
         <div className="space-y-2 stagger">
@@ -187,7 +205,9 @@ export default function LeaderboardPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-display font-bold text-vault-text">{e.checkouts} <span className="text-vault-text-dim font-body font-normal text-sm">checkouts</span></p>
+                  <p className="font-display font-bold text-vault-text">
+                    {e.checkouts} <span className="text-vault-text-dim font-body font-normal text-sm">checkouts</span>
+                  </p>
                   <p className="font-mono text-vault-green text-xs">~£{e.profit.toFixed(2)} profit</p>
                 </div>
               </div>
@@ -196,10 +216,10 @@ export default function LeaderboardPage() {
         </div>
       )}
 
-      {/* Admin: show all logged entries this month with delete */}
-      {isAdmin && myEntries.length > 0 && (
+      {/* Admin: logged entries this month with delete */}
+      {isAdmin && entries.length > 0 && (
         <div className="mt-8">
-          <p className="text-[10px] font-mono text-vault-muted uppercase tracking-widest mb-3">Logged This Month</p>
+          <p className="text-[10px] font-mono text-vault-muted uppercase tracking-widest mb-3">All Logged Entries This Month</p>
           <div className="space-y-1.5 stagger">
             {entries.map(e => (
               <div key={e.id} className="vault-card flex items-center gap-3 py-3">
@@ -234,10 +254,19 @@ export default function LeaderboardPage() {
                   {users.map(u => <option key={u.id} value={u.id}>{u.username}</option>)}
                 </select>
               </div>
-              <div><label className="vault-label">Drop / Item</label><input className="vault-input" placeholder="Nike SNKRS drop, Yeezy 350..." value={form.item_name} onChange={e => setForm(f => ({ ...f, item_name: e.target.value }))} /></div>
+              <div>
+                <label className="vault-label">Drop / Item</label>
+                <input className="vault-input" placeholder="Nike SNKRS drop, Yeezy 350..." value={form.item_name} onChange={e => setForm(f => ({ ...f, item_name: e.target.value }))} />
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="vault-label">Checkouts</label><input className="vault-input" type="number" min="1" placeholder="1" value={form.checkouts} onChange={e => setForm(f => ({ ...f, checkouts: e.target.value }))} /></div>
-                <div><label className="vault-label">Est. Profit (£)</label><input className="vault-input" type="number" step="0.01" placeholder="0.00" value={form.estimated_profit} onChange={e => setForm(f => ({ ...f, estimated_profit: e.target.value }))} /></div>
+                <div>
+                  <label className="vault-label">Checkouts</label>
+                  <input className="vault-input" type="number" min="1" placeholder="1" value={form.checkouts} onChange={e => setForm(f => ({ ...f, checkouts: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="vault-label">Est. Profit (£)</label>
+                  <input className="vault-input" type="number" step="0.01" placeholder="0.00" value={form.estimated_profit} onChange={e => setForm(f => ({ ...f, estimated_profit: e.target.value }))} />
+                </div>
               </div>
               <div>
                 <label className="vault-label">Month</label>

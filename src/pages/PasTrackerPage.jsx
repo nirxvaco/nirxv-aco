@@ -23,11 +23,10 @@ export default function PasTrackerPage() {
       .eq('status', 'paid')
       .order('created_at', { ascending: false })
 
-    // Filter client-side: only show invoices that belong to current admin
-    const mine = (data || []).filter(inv =>
-      !inv.split_with_warrior ? inv.user_id === user.id : true
-    )
-    setInvoices(mine)
+    // FIX (Security Fix 7): Removed client-side `mine` filter — RLS on invoices
+    // already scopes to auth.uid() = user_id OR auth.uid() = target_user_id.
+    // The previous client-side filter was redundant and leaked filter logic to the client.
+    setInvoices(data || [])
     setLoading(false)
   }, [user.id])
 

@@ -30,7 +30,10 @@ export default function ExpensesPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('expenses').select('*').eq('user_id', user.id).order('date', { ascending: false })
+    // FIX (Security Fix 7): Removed .eq('user_id', user.id) — RLS on expenses table
+    // scopes this to auth.uid() = user_id automatically. Client-side filter was redundant
+    // and leaked that user_id is used as a filter param in the URL.
+    const { data } = await supabase.from('expenses').select('*').order('date', { ascending: false })
     setExpenses(data || [])
     setLoading(false)
   }, [user.id])
@@ -40,7 +43,9 @@ export default function ExpensesPage() {
   async function save() {
     if (!form.label || !form.amount) return
     setSaving(true)
-    const payload = { ...form, amount: parseFloat(form.amount), user_id: user.id }
+    // FIX (Security Fix 7): Removed explicit user_id from payload — Supabase RLS
+    // insert policy uses auth.uid() to scope the row automatically on the server side.
+    const payload = { ...form, amount: parseFloat(form.amount) }
     if (editId) await supabase.from('expenses').update(payload).eq('id', editId)
     else await supabase.from('expenses').insert(payload)
     await load(); closeModal(); setSaving(false)

@@ -78,6 +78,8 @@ export default function OrderTrackingPage() {
       }
     }
     async function loadAdmins() {
+      // NOTE: This query is admin-only (AdminRoute protected) so reading user_profiles
+      // with role filter is acceptable here. Only id and username are selected — safe.
       const { data } = await supabase.from('user_profiles').select('id, username').eq('role', 'admin')
       setAdmins(data || [])
     }

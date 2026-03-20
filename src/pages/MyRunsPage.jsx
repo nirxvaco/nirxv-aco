@@ -15,10 +15,11 @@ export default function MyRunsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    // FIX (Security Fix 7): Removed .eq('user_id', user.id) — RLS on profile_runs
+    // scopes via auth.uid() = user_id automatically.
     const { data } = await supabase
       .from('profile_runs')
       .select('*')
-      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     setRuns(data || [])
     setLoading(false)

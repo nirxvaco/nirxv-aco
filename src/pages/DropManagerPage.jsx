@@ -619,13 +619,27 @@ export default function DropManagerPage() {
                 <label className="vault-label">Items <span className="text-vault-muted">(optional)</span></label>
                 <div className="space-y-1.5 mb-2">
                   {(dropForm.items || []).map((item, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-vault-bg rounded-lg px-3 py-2 border border-vault-border">
+                  <div key={i} className="bg-vault-bg rounded-lg px-3 py-2 border border-vault-border space-y-1.5">
+                    <div className="flex items-center gap-2">
                       <span className="font-mono text-vault-accent text-sm font-bold shrink-0">{item.key}</span>
                       {item.name && <span className="text-vault-text-dim text-sm">{item.name}</span>}
-                      {item.pid && <span className="font-mono text-vault-gold text-xs bg-vault-gold/10 border border-vault-gold/20 px-2 py-0.5 rounded ml-1">{item.pid}</span>}
                       <button onClick={() => removeItem(i)} className="ml-auto text-vault-muted hover:text-vault-red transition-colors shrink-0"><X className="w-3.5 h-3.5" /></button>
                     </div>
-                  ))}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-vault-gold w-8 shrink-0">PID</span>
+                      <input
+                        className="vault-input text-xs font-mono text-vault-gold py-1 flex-1"
+                        placeholder="Enter PID when live..."
+                        value={item.pid || ''}
+                        onChange={e => setDropForm(f => ({
+                          ...f,
+                          items: f.items.map((it, idx) => idx === i ? { ...it, pid: e.target.value } : it)
+                        }))}
+                      />
+                    </div>
+                  </div>
+                ))}
+                                  
                 </div>
                 <div className="space-y-2">
                   <div className="flex gap-2">

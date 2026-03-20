@@ -39,7 +39,9 @@ export default function ProfitPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('profit_entries').select('*').eq('user_id', user.id).order('date', { ascending: false })
+    // FIX (Security Fix 7): Removed .eq('user_id', user.id) — RLS on profit_entries
+    // scopes via auth.uid() = user_id automatically. Client filter was redundant.
+    const { data } = await supabase.from('profit_entries').select('*').order('date', { ascending: false })
     setEntries(data || [])
     setLoading(false)
   }, [user.id])
@@ -67,6 +69,8 @@ export default function ProfitPage() {
       bought_via_aco: form.bought_via_aco,
       pas_paid: form.pas_paid ? parseFloat(form.pas_paid) : 0,
       pas_rate: form.pas_rate || 0,
+      // NOTE: user_id kept in INSERT payload intentionally — the DB column requires it
+      // and RLS insert policy validates it matches auth.uid() server-side.
       user_id: user.id,
     }
     if (editId) await supabase.from('profit_entries').update(payload).eq('id', editId)

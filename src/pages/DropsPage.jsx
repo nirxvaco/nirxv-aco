@@ -43,12 +43,14 @@ export default function DropsPage() {
     const { data: dropData } = await supabase.from('drops').select('*').in('status', ['open', 'restock', 'upcoming']).order('created_at', { ascending: false })
     setDrops(dropData || [])
 
-    const { data: subData } = await supabase.from('drop_submissions').select('*').eq('user_id', user.id)
+    // FIX (Security Fix 7): Removed .eq('user_id', user.id) — RLS scopes automatically
+    const { data: subData } = await supabase.from('drop_submissions').select('*')
     const subMap = {}
     ;(subData || []).forEach(s => { subMap[s.drop_id] = s })
     setSubmissions(subMap)
 
-    const { data: profileData } = await supabase.from('profiles').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+    // FIX (Security Fix 7): Removed .eq('user_id', user.id) — RLS scopes automatically
+    const { data: profileData } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
     if (profileData) {
       const decrypted = await Promise.all(profileData.map(decryptProfile))
       setMyProfiles(decrypted)

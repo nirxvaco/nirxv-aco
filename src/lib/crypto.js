@@ -54,13 +54,21 @@ export function maskCard(cardNumber) {
 }
 
 // Fields that must be encrypted before storing
+// NOTE: shipping fields added to prevent plaintext PII in database
 export const ENCRYPTED_FIELDS = [
+  // Card details
   'card_number', 'card_cvv', 'card_holder_name',
   'card_month', 'card_year', 'card_type',
-  'billing_address', 'billing_address_2',
+  // Billing
   'billing_first_name', 'billing_last_name',
+  'billing_address', 'billing_address_2',
   'billing_city', 'billing_zip', 'billing_state', 'billing_country',
-  'phone', 'email'
+  // Shipping — added to prevent plaintext PII
+  'shipping_first_name', 'shipping_last_name',
+  'shipping_address', 'shipping_address_2',
+  'shipping_city', 'shipping_zip', 'shipping_state',
+  // Contact
+  'phone', 'email',
 ]
 
 export async function encryptProfile(profile) {

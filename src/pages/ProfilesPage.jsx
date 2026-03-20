@@ -199,8 +199,10 @@ export default function ProfilesPage() {
   const load = useCallback(async () => {
     setLoading(true)
     const [{ data: profileData }, { data: groupData }] = await Promise.all([
-      supabase.from('profiles').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-      supabase.from('profile_groups').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
+      // FIX (Security Fix 7): Removed .eq('user_id', user.id) from both queries —
+      // RLS on profiles and profile_groups tables scopes via auth.uid() automatically.
+      supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+      supabase.from('profile_groups').select('*').order('created_at', { ascending: true }),
     ])
     if (profileData) {
       const decrypted = await Promise.all(profileData.map(decryptProfile))
@@ -363,8 +365,7 @@ export default function ProfilesPage() {
       notifyDiscord('profile_edited', { profile_name: form.profile_name, fields_changed: [] }, userProfile?.username)
     } else {
       await supabase.from('profiles').insert(encrypted)
-      notifyDiscord('profile_added', { profile_name: form.profile_name, email: form.email, postcode: form.shipping_zip }, userProfile?.username)
-    }
+      notifyDiscord('profile_added', { profile_name: form.profile_name }, userProfile?.username)    }
     await load(); closeModal(); setSaving(false)
   }
 

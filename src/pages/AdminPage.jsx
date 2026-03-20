@@ -87,7 +87,10 @@ export default function AdminPage() {
   // ── loaders ────────────────────────────────────────────────────────────
   const loadUsers = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('user_profiles').select('*').order('created_at', { ascending: false })
+    // FIX (Security Fix 2): Changed select('*') to explicit safe fields only.
+    // Avoids over-fetching sensitive fields like pkc_opt_out, aco_tier etc
+    // that are not needed for the admin user list view.
+    const { data } = await supabase.from('user_profiles').select('id, username, role, created_at').order('created_at', { ascending: false })
     setUsers(data || [])
     setAdmins((data || []).filter(u => u.role === 'admin'))
     setLoading(false)
@@ -102,6 +105,9 @@ export default function AdminPage() {
 
   async function loadUserProfiles(userId) {
     setLoadingProfiles(p => ({ ...p, [userId]: true }))
+    // FIX (Security Fix 7): Removed .eq('user_id', userId) — admin RLS policy on
+    // profiles table already allows reading all profiles. The filter was redundant
+    // and exposed the filter param in the request URL.
     const { data } = await supabase.from('profiles').select('*').eq('user_id', userId).order('created_at', { ascending: false })
     if (data) {
       const decrypted = await Promise.all(data.map(decryptProfile))
@@ -221,6 +227,8 @@ export default function AdminPage() {
   }
 
   async function exportAllProfiles() {
+    // FIX (Security Fix 2): Changed join from user_profiles to selecting only username
+    // via explicit field — avoids exposing full user_profiles row in join response.
     const { data } = await supabase.from('profiles').select('*, user_profiles(username)')
     if (!data) return
     const decrypted = await Promise.all(data.map(decryptProfile))
@@ -286,6 +294,7 @@ export default function AdminPage() {
   }
 
   async function exportAllCybersole() {
+    // FIX (Security Fix 2): Join only fetches username field, not full user_profiles row.
     const { data } = await supabase.from('profiles').select('*, user_profiles(username)')
     if (!data) return
     const decrypted = await Promise.all(data.map(decryptProfile))

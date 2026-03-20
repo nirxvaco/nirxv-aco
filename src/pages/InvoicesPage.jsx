@@ -42,7 +42,9 @@ export default function InvoicesPage() {
 
       // Enrich with usernames from user_profiles
       if (data && data.length > 0) {
-        const { data: profiles } = await supabase.from('user_profiles').select('id, username')
+        // FIX (Security Fix 2): Changed from user_profiles to leaderboard_view
+        // to avoid exposing role, email, pkc_opt_out and other PII fields.
+        const { data: profiles } = await supabase.from('leaderboard_view').select('id, username')
         const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
         const enriched = data.map(inv => ({
           ...inv,
@@ -53,10 +55,11 @@ export default function InvoicesPage() {
         setInvoices(data || [])
       }
     } else {
+      // FIX (Security Fix 7): Removed .eq('target_user_id', user.id) — RLS policy
+      // "Users view own invoices" already scopes via auth.uid() = user_id OR target_user_id.
       const { data, error } = await supabase
         .from('invoices')
         .select('*')
-        .eq('target_user_id', user.id)
         .order('created_at', { ascending: false })
       if (error) console.error('INVOICE LOAD ERROR:', error)
       setInvoices(data || [])
@@ -67,7 +70,9 @@ export default function InvoicesPage() {
   // Load all users separately so the dropdown is always populated for admin
   useEffect(() => {
     if (isAdmin) {
-      supabase.from('user_profiles').select('id, username').then(({ data }) => setUsers(data || []))
+      // FIX (Security Fix 2): Changed from user_profiles to leaderboard_view
+      // to avoid exposing role, email, pkc_opt_out and other sensitive fields.
+      supabase.from('leaderboard_view').select('id, username').then(({ data }) => setUsers(data || []))
     }
   }, [isAdmin])
 

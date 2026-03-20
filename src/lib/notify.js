@@ -8,16 +8,20 @@ export async function notifyDiscord(event, details = {}, username = 'Unknown') {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
 
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
     const res = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/discord-notify`,
       {
         method: 'POST',
         headers: {
           'Content-Type':  'application/json',
-          'Authorization': `Bearer ${anonKey}`,
-          'apikey':        anonKey,
+          // FIX (Security): Use the user's JWT session token, not the public anon key.
+          // The anon key is visible in browser source code and provides zero
+          // authentication — anyone could call the edge function with it.
+          // session.access_token is a short-lived signed JWT proving the user
+          // is genuinely authenticated. It expires automatically.
+          'Authorization': `Bearer ${session.access_token}`,
+          // apikey still uses anon key — required by Supabase for routing, this is correct.
+          'apikey':        import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({ event, username, details }),
       }
