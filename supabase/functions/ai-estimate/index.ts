@@ -12,7 +12,9 @@ const SUPABASE_URL      = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_ANON     = Deno.env.get('SUPABASE_ANON_KEY')!
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://nirxvaco.com',
+  'Access-Control-Allow-Origin': request.headers.get('origin') === 'https://www.nirxvaco.com' 
+  ? 'https://www.nirxvaco.com' 
+  : 'https://nirxvaco.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }

@@ -12,7 +12,9 @@ const SUPABASE_ANON = Deno.env.get('SUPABASE_ANON_KEY')!
 // FIX (Security): Locked CORS to nirxvaco.com only.
 // Previously '*' which allowed any origin to call this function.
 const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://nirxvaco.com',
+  'Access-Control-Allow-Origin': request.headers.get('origin') === 'https://www.nirxvaco.com' 
+  ? 'https://www.nirxvaco.com' 
+  : 'https://nirxvaco.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }

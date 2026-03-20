@@ -1,10 +1,4 @@
 // Supabase Edge Function: decrypt-profile
-// Decrypts encrypted profile fields server-side so the encryption key
-// never lives in the browser bundle.
-//
-// Deploy: supabase functions deploy decrypt-profile
-// Secret: supabase secrets set ENCRYPTION_KEY=your_key_here
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -12,13 +6,17 @@ const ENCRYPTION_KEY = Deno.env.get('ENCRYPTION_KEY')!
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_ANON  = Deno.env.get('SUPABASE_ANON_KEY')!
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://nirxvaco.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+const ALLOWED_ORIGINS = ['https://nirxvaco.com', 'https://www.nirxvaco.com']
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') || ''
+  return {
+    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  }
 }
 
-// AES-256-GCM decrypt using Deno's Web Crypto API (same algorithm as frontend)
 async function getKey(): Promise<CryptoKey> {
   const raw = new TextEncoder().encode(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32))
   return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['decrypt'])
@@ -48,11 +46,12 @@ const ENCRYPTED_FIELDS = [
 ]
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req)
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { status: 200, headers: corsHeaders })
   }
 
-  // Verify the user is authenticated
   const authHeader = req.headers.get('Authorization')
   if (!authHeader?.startsWith('Bearer ')) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -79,7 +78,6 @@ serve(async (req) => {
       })
     }
 
-    // Decrypt each profile
     const decrypted = await Promise.all(profiles.map(async (profile: Record<string, string>) => {
       const result = { ...profile }
       for (const field of ENCRYPTED_FIELDS) {
