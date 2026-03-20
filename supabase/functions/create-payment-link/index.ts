@@ -1,15 +1,60 @@
-// Supabase Edge Function: create-payment-link
-// Deployed to: supabase/functions/create-payment-link/index.ts
-// This runs server-side so your Stripe secret key is never exposed
+// Supabase Edge Function: discord-notify
+// Called from the frontend whenever a notable action happens.
+// Set DISCORD_WEBHOOK_URL as a Supabase secret.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY')!
-const WARRIOR_ACCOUNT_ID = Deno.env.get('WARRIOR_STRIPE_ACCOUNT_ID')! // acct_xxxxx
+const WEBHOOK_URL   = Deno.env.get('DISCORD_WEBHOOK_URL')!
+const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_ANON = Deno.env.get('SUPABASE_ANON_KEY')!
 
+// FIX (Security): Locked CORS to nirxvaco.com only.
+// Previously '*' which allowed any origin to call this function.
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://nirxvaco.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+const COLOURS = {
+  profile_added:  0x00c8ff,
+  profile_edited: 0x7a8aff,
+  invoice_paid:   0x00e396,
+  drop_signup:    0xffe600,
+  pkc_opt_out:    0xff3355,
+  pkc_opt_in:     0x00e396,
+  drop_opt_out:   0xff6b35,
+}
+
+const ICONS = {
+  profile_added:  '👤',
+  profile_edited: '✏️',
+  invoice_paid:   '💰',
+  drop_signup:    '📦',
+  pkc_opt_out:    '❌',
+  pkc_opt_in:     '✅',
+  drop_opt_out:   '🚫',
+}
+
+const TITLES = {
+  profile_added:  'New Profile Added',
+  profile_edited: 'Profile Edited',
+  invoice_paid:   'Invoice Marked as Paid',
+  drop_signup:    'Drop Sign Up',
+  pkc_opt_out:    'PKC Opt Out',
+  pkc_opt_in:     'PKC Opt Back In',
+  drop_opt_out:   'Cleared Profiles for Drop',
+}
+
+const DESCRIPTIONS = {
+  profile_added:  (u: string) => `**${u}** added a new profile`,
+  profile_edited: (u: string) => `**${u}** edited a profile`,
+  invoice_paid:   (u: string) => `**${u}** marked an invoice as paid`,
+  drop_signup:    (u: string) => `**${u}** signed up for a drop`,
+  pkc_opt_out:    (u: string) => `**${u}** has opted out of PKC`,
+  pkc_opt_in:     (u: string) => `**${u}** has opted back into PKC`,
+  drop_opt_out:   (u: string) => `**${u}** cleared their profiles for a drop`,
 }
 
 serve(async (req) => {
@@ -17,79 +62,102 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // FIX (Security): Verify the request comes from a real authenticated user.
+  // Previously the public anon key was used as the Authorization token —
+  // it's visible in browser source and provides zero authentication guarantee.
+  // Now we require a valid JWT session token and verify it server-side.
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  // Verify the JWT is a real active Supabase session
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
+    global: { headers: { Authorization: authHeader } },
+  })
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
   try {
-    const { amount, currency, description, split_with_warrior, invoice_id } = await req.json()
+    const { event, username, details } = await req.json()
 
-    // Amount must be in pence (Stripe uses smallest currency unit)
-    const amountPence = Math.round(parseFloat(amount) * 100)
+    const colour = COLOURS[event as keyof typeof COLOURS] ?? 0x7a7a9a
+    const icon   = ICONS[event as keyof typeof ICONS]     ?? '🔔'
+    const title  = TITLES[event as keyof typeof TITLES]   ?? 'Notification'
+    const descFn = DESCRIPTIONS[event as keyof typeof DESCRIPTIONS] ?? ((u: string) => `**${u}** performed an action`)
 
-    let paymentLinkUrl: string
+    const fields: { name: string; value: string; inline: boolean }[] = []
 
-    if (split_with_warrior && WARRIOR_ACCOUNT_ID) {
-      // ── SPLIT PAYMENT (Warrior's runners) ──────────────────────────────
-      // Uses Stripe Connect transfer_data to route 50% to Warrior automatically
-      // You keep 50%, Warrior gets 50% sent directly to his Express account
-
-      const warriorShare = Math.floor(amountPence * 0.5) // 50% to Warrior
-
-      // Create a Payment Link with Connect
-      const response = await fetch('https://api.stripe.com/v1/payment_links', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          'line_items[0][price_data][currency]': currency || 'gbp',
-          'line_items[0][price_data][unit_amount]': amountPence.toString(),
-          'line_items[0][price_data][product_data][name]': description || 'ACO Payment',
-          'line_items[0][quantity]': '1',
-          // Route Warrior's share to his Express account
-          'payment_intent_data[transfer_data][destination]': WARRIOR_ACCOUNT_ID,
-          'payment_intent_data[transfer_data][amount]': warriorShare.toString(),
-          'metadata[invoice_id]': invoice_id || '',
-          'metadata[split_type]': 'warrior_50_50',
-          'metadata[warrior_share]': warriorShare.toString(),
-          'metadata[your_share]': (amountPence - warriorShare).toString(),
-        }),
-      })
-
-      const paymentLink = await response.json()
-      if (!response.ok) throw new Error(paymentLink.error?.message || 'Stripe error')
-      paymentLinkUrl = paymentLink.url
-
-    } else {
-      // ── STANDARD PAYMENT (your runners - 100% to you) ──────────────────
-      const response = await fetch('https://api.stripe.com/v1/payment_links', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          'line_items[0][price_data][currency]': currency || 'gbp',
-          'line_items[0][price_data][unit_amount]': amountPence.toString(),
-          'line_items[0][price_data][product_data][name]': description || 'ACO Payment',
-          'line_items[0][quantity]': '1',
-          'metadata[invoice_id]': invoice_id || '',
-          'metadata[split_type]': 'full',
-        }),
-      })
-
-      const paymentLink = await response.json()
-      if (!response.ok) throw new Error(paymentLink.error?.message || 'Stripe error')
-      paymentLinkUrl = paymentLink.url
+    if (event === 'profile_added') {
+      if (details.profile_name) fields.push({ name: 'Profile', value: `\`${details.profile_name}\``, inline: true })
+      // email and postcode intentionally excluded — PII
     }
 
-    return new Response(
-      JSON.stringify({ url: paymentLinkUrl }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    if (event === 'profile_edited') {
+      if (details.profile_name) fields.push({ name: 'Profile', value: `\`${details.profile_name}\``, inline: true })
+      if (details.fields_changed?.length) {
+        fields.push({ name: 'Fields changed', value: details.fields_changed.join(', '), inline: false })
+      }
+    }
 
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    if (event === 'invoice_paid') {
+      if (details.title)  fields.push({ name: 'Invoice', value: `\`${details.title}\``,                          inline: true })
+      if (details.amount) fields.push({ name: 'Amount',  value: `**£${parseFloat(details.amount).toFixed(2)}**`, inline: true })
+    }
+
+    if (event === 'drop_signup') {
+      if (details.drop_name)     fields.push({ name: 'Drop',     value: `\`${details.drop_name}\``,     inline: true })
+      if (details.profile_count) fields.push({ name: 'Profiles', value: `**${details.profile_count}**`, inline: true })
+      if (details.profile_names?.length) {
+        fields.push({ name: 'Profile Names', value: details.profile_names.join(', '), inline: false })
+      }
+    }
+
+    if (event === 'drop_opt_out') {
+      if (details.drop_name) fields.push({ name: 'Drop', value: `\`${details.drop_name}\``, inline: true })
+    }
+
+    if (event === 'pkc_opt_out' || event === 'pkc_opt_in') {
+      if (details.status) fields.push({ name: 'Status', value: details.status, inline: true })
+    }
+
+    const embed = {
+      title:       `${icon} ${title}`,
+      color:       colour,
+      description: descFn(username),
+      fields,
+      footer:      { text: 'Nirxv ACO' },
+      timestamp:   new Date().toISOString(),
+    }
+
+    const res = await fetch(WEBHOOK_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ embeds: [embed] }),
+    })
+
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`Discord webhook failed: ${res.status} ${text}`)
+    }
+
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+
+  } catch (err) {
+    console.error('discord-notify error:', err)
+    return new Response(JSON.stringify({ error: (err as Error).message }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
 })

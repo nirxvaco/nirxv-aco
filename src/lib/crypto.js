@@ -1,7 +1,16 @@
-// AES-256-GCM encryption using the browser's native Web Crypto API
-// The encryption key is derived from VITE_ENCRYPTION_KEY env var
+// src/lib/crypto.js
+// 
+// SECURITY: Encryption still happens in the browser (safe — we WANT to encrypt before sending)
+// SECURITY: Decryption now happens via Edge Function — the key never lives in the browser bundle.
+//
+// The VITE_ENCRYPTION_KEY env var is ONLY used for encryption (writing data).
+// Reading/decrypting goes through the decrypt-profile Edge Function.
+
+import { supabase } from './supabase'
 
 const ENCRYPTION_KEY = import.meta.env.VITE_ENCRYPTION_KEY || 'fallback-dev-key-change-in-prod!!'
+const SUPABASE_URL   = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_ANON  = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 async function getKey() {
   const keyMaterial = await crypto.subtle.importKey(
@@ -9,11 +18,12 @@ async function getKey() {
     new TextEncoder().encode(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32)),
     { name: 'AES-GCM' },
     false,
-    ['encrypt', 'decrypt']
+    ['encrypt']  // encrypt only — no decrypt permission in browser
   )
   return keyMaterial
 }
 
+// Encrypt stays in the browser — this is safe, we want data encrypted before it hits the DB
 export async function encrypt(plaintext) {
   if (!plaintext) return ''
   try {
@@ -31,19 +41,41 @@ export async function encrypt(plaintext) {
   }
 }
 
-export async function decrypt(ciphertext) {
-  if (!ciphertext) return ''
+// Decrypt goes via Edge Function — key never touches the browser
+export async function decryptProfiles(profiles) {
+  if (!profiles || profiles.length === 0) return []
   try {
-    const key = await getKey()
-    const combined = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0))
-    const iv = combined.slice(0, 12)
-    const data = combined.slice(12)
-    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data)
-    return new TextDecoder().decode(decrypted)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) throw new Error('No session')
+
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/decrypt-profile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': SUPABASE_ANON,
+      },
+      body: JSON.stringify({ profiles }),
+    })
+
+    if (!res.ok) {
+      const err = await res.text()
+      console.error('Decrypt edge function error:', err)
+      return profiles.map(p => ({ ...p, card_number: '[error]', card_cvv: '[error]' }))
+    }
+
+    const data = await res.json()
+    return data.profiles
   } catch (e) {
     console.error('Decryption failed', e)
-    return '[decryption error]'
+    return profiles.map(p => ({ ...p, card_number: '[error]', card_cvv: '[error]' }))
   }
+}
+
+// Single profile decrypt helper (wraps the batch function)
+export async function decryptProfile(profile) {
+  const results = await decryptProfiles([profile])
+  return results[0]
 }
 
 export function maskCard(cardNumber) {
@@ -53,21 +85,15 @@ export function maskCard(cardNumber) {
   return `•••• •••• •••• ${clean.slice(-4)}`
 }
 
-// Fields that must be encrypted before storing
-// NOTE: shipping fields added to prevent plaintext PII in database
 export const ENCRYPTED_FIELDS = [
-  // Card details
   'card_number', 'card_cvv', 'card_holder_name',
   'card_month', 'card_year', 'card_type',
-  // Billing
   'billing_first_name', 'billing_last_name',
   'billing_address', 'billing_address_2',
   'billing_city', 'billing_zip', 'billing_state', 'billing_country',
-  // Shipping — added to prevent plaintext PII
   'shipping_first_name', 'shipping_last_name',
   'shipping_address', 'shipping_address_2',
   'shipping_city', 'shipping_zip', 'shipping_state',
-  // Contact
   'phone', 'email',
 ]
 
@@ -76,16 +102,6 @@ export async function encryptProfile(profile) {
   for (const field of ENCRYPTED_FIELDS) {
     if (result[field] !== undefined && result[field] !== null) {
       result[field] = await encrypt(String(result[field]))
-    }
-  }
-  return result
-}
-
-export async function decryptProfile(profile) {
-  const result = { ...profile }
-  for (const field of ENCRYPTED_FIELDS) {
-    if (result[field] !== undefined && result[field] !== null && result[field] !== '') {
-      result[field] = await decrypt(result[field])
     }
   }
   return result
