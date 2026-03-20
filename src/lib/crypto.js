@@ -1,10 +1,6 @@
 // src/lib/crypto.js
-// 
-// SECURITY: Encryption still happens in the browser (safe — we WANT to encrypt before sending)
-// SECURITY: Decryption now happens via Edge Function — the key never lives in the browser bundle.
-//
-// The VITE_ENCRYPTION_KEY env var is ONLY used for encryption (writing data).
-// Reading/decrypting goes through the decrypt-profile Edge Function.
+// SECURITY: Encryption happens in the browser (safe — encrypting before sending to DB)
+// SECURITY: Decryption happens via Edge Function — key never lives in the browser bundle.
 
 import { supabase } from './supabase'
 
@@ -18,12 +14,11 @@ async function getKey() {
     new TextEncoder().encode(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32)),
     { name: 'AES-GCM' },
     false,
-    ['encrypt']  // encrypt only — no decrypt permission in browser
+    ['encrypt']
   )
   return keyMaterial
 }
 
-// Encrypt stays in the browser — this is safe, we want data encrypted before it hits the DB
 export async function encrypt(plaintext) {
   if (!plaintext) return ''
   try {
@@ -41,18 +36,27 @@ export async function encrypt(plaintext) {
   }
 }
 
+// Gets a fresh session token directly from the supabase client
+async function getToken() {
+  const { data } = await supabase.auth.getSession()
+  return data?.session?.access_token || null
+}
+
 // Decrypt goes via Edge Function — key never touches the browser
 export async function decryptProfiles(profiles) {
   if (!profiles || profiles.length === 0) return []
   try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw new Error('No session')
+    const token = await getToken()
+    if (!token) {
+      console.error('No active session for decryption')
+      return profiles
+    }
 
     const res = await fetch(`${SUPABASE_URL}/functions/v1/decrypt-profile`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
+        'Authorization': `Bearer ${token}`,
         'apikey': SUPABASE_ANON,
       },
       body: JSON.stringify({ profiles }),
@@ -72,7 +76,7 @@ export async function decryptProfiles(profiles) {
   }
 }
 
-// Single profile decrypt helper (wraps the batch function)
+// Single profile decrypt helper
 export async function decryptProfile(profile) {
   const results = await decryptProfiles([profile])
   return results[0]
