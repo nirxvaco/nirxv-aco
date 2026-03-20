@@ -10,7 +10,7 @@ import {
   Search, CreditCard, ChevronDown, ChevronUp, X, Save, AlertTriangle,
   Shuffle, ChevronLeft, ChevronRight, Copy, Check, RefreshCw, Zap,
   LayoutList, Table2, Folder, FolderPlus, Send, CheckSquare, Square,
-  Tag, Palette
+  Tag, Edit3
 } from 'lucide-react'
 
 // ── Address Jig Engine ────────────────────────────────────────────────────────
@@ -70,6 +70,32 @@ const GROUP_COLOURS = [
   '#ff9500','#ff6bcb','#7a8aff','#00d4aa','#ff6b35',
 ]
 
+// ── All editable fields for bulk edit ────────────────────────────────────────
+const BULK_EDIT_FIELDS = [
+  { key: 'profile_name',        label: 'Profile Name',       type: 'text' },
+  { key: 'email',               label: 'Email',              type: 'email' },
+  { key: 'phone',               label: 'Phone',              type: 'text' },
+  { key: 'shipping_first_name', label: 'Shipping First Name',type: 'text' },
+  { key: 'shipping_last_name',  label: 'Shipping Last Name', type: 'text' },
+  { key: 'shipping_address',    label: 'Shipping Address',   type: 'text' },
+  { key: 'shipping_address_2',  label: 'Shipping Address 2', type: 'text' },
+  { key: 'shipping_city',       label: 'Shipping City',      type: 'text' },
+  { key: 'shipping_zip',        label: 'Shipping ZIP',       type: 'text' },
+  { key: 'shipping_state',      label: 'Shipping State',     type: 'text' },
+  { key: 'card_holder_name',    label: 'Card Holder Name',   type: 'text' },
+  { key: 'card_type',           label: 'Card Type',          type: 'select', options: ['Visa','Mastercard','Amex','Discover','Other'] },
+  { key: 'card_number',         label: 'Card Number',        type: 'text' },
+  { key: 'card_month',          label: 'Expiry Month (MM)',  type: 'text' },
+  { key: 'card_year',           label: 'Expiry Year (YY)',   type: 'text' },
+  { key: 'card_cvv',            label: 'CVV',                type: 'text' },
+  { key: 'billing_first_name',  label: 'Billing First Name', type: 'text' },
+  { key: 'billing_last_name',   label: 'Billing Last Name',  type: 'text' },
+  { key: 'billing_address',     label: 'Billing Address',    type: 'text' },
+  { key: 'billing_city',        label: 'Billing City',       type: 'text' },
+  { key: 'billing_zip',         label: 'Billing ZIP',        type: 'text' },
+  { key: 'billing_state',       label: 'Billing State',      type: 'text' },
+]
+
 function JigTool({ currentAddress, onApply }) {
   const [open,setOpen]=useState(false); const [style,setStyle]=useState('light'); const [variants,setVariants]=useState([]); const [page,setPage]=useState(0); const [copied,setCopied]=useState(false); const [error,setError]=useState('')
   function generate(s=style,addr=currentAddress) { setError(''); try { setVariants(generateVariants(addr,s)); setPage(0) } catch(e) { setError(e.message) } }
@@ -114,46 +140,16 @@ const EMPTY_PROFILE = {
 }
 const CARD_TYPES = ['Visa','Mastercard','Amex','Discover','Other']
 
-// ── Spreadsheet cell component ────────────────────────────────────────────────
 function EditableCell({ value, onSave, type='text', options, masked=false, revealed=false }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(value || '')
-
-  function commit() {
-    setEditing(false)
-    if (val !== value) onSave(val)
-  }
-
-  if (masked && !revealed) {
-    return (
-      <div onClick={() => setEditing(true)} className="px-2 py-1 rounded cursor-pointer hover:bg-vault-border/50 font-mono text-xs text-vault-text-dim">
-        {value ? '•••• •••• •••• ' + String(value).slice(-4) : '—'}
-      </div>
-    )
-  }
-
+  function commit() { setEditing(false); if (val !== value) onSave(val) }
+  if (masked && !revealed) return (<div onClick={() => setEditing(true)} className="px-2 py-1 rounded cursor-pointer hover:bg-vault-border/50 font-mono text-xs text-vault-text-dim">{value ? '•••• •••• •••• ' + String(value).slice(-4) : '—'}</div>)
   if (editing) {
-    if (options) return (
-      <select autoFocus className="w-full bg-vault-bg border border-vault-accent rounded px-2 py-1 text-xs text-vault-text font-mono focus:outline-none"
-        value={val} onChange={e=>setVal(e.target.value)} onBlur={commit}>
-        {options.map(o=><option key={o} value={o}>{o}</option>)}
-      </select>
-    )
-    return (
-      <input autoFocus type={type}
-        className="w-full bg-vault-bg border border-vault-accent rounded px-2 py-1 text-xs text-vault-text font-mono focus:outline-none"
-        value={val} onChange={e=>setVal(e.target.value)}
-        onBlur={commit} onKeyDown={e=>{if(e.key==='Enter')commit();if(e.key==='Escape'){setVal(value||'');setEditing(false)}}}/>
-    )
+    if (options) return (<select autoFocus className="w-full bg-vault-bg border border-vault-accent rounded px-2 py-1 text-xs text-vault-text font-mono focus:outline-none" value={val} onChange={e=>setVal(e.target.value)} onBlur={commit}>{options.map(o=><option key={o} value={o}>{o}</option>)}</select>)
+    return (<input autoFocus type={type} className="w-full bg-vault-bg border border-vault-accent rounded px-2 py-1 text-xs text-vault-text font-mono focus:outline-none" value={val} onChange={e=>setVal(e.target.value)} onBlur={commit} onKeyDown={e=>{if(e.key==='Enter')commit();if(e.key==='Escape'){setVal(value||'');setEditing(false)}}}/>)
   }
-
-  return (
-    <div onClick={()=>setEditing(true)}
-      className="px-2 py-1 rounded cursor-pointer hover:bg-vault-border/50 text-xs text-vault-text font-mono truncate min-w-[60px]"
-      title={value}>
-      {value||<span className="text-vault-muted">—</span>}
-    </div>
-  )
+  return (<div onClick={()=>setEditing(true)} className="px-2 py-1 rounded cursor-pointer hover:bg-vault-border/50 text-xs text-vault-text font-mono truncate min-w-[60px]" title={value}>{value||<span className="text-vault-muted">—</span>}</div>)
 }
 
 export default function ProfilesPage() {
@@ -162,8 +158,8 @@ export default function ProfilesPage() {
   const [groups, setGroups] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [view, setView] = useState('list') // 'list' | 'spreadsheet'
-  const [selectedGroup, setSelectedGroup] = useState(null) // null = all
+  const [view, setView] = useState('list')
+  const [selectedGroup, setSelectedGroup] = useState(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -191,6 +187,12 @@ export default function ProfilesPage() {
   const [openDrops, setOpenDrops] = useState([])
   const [selectedDropId, setSelectedDropId] = useState(null)
   const [submittingDrop, setSubmittingDrop] = useState(false)
+
+  // ── Bulk edit modal ───────────────────────────────────────────────────────
+  const [bulkEditModal, setBulkEditModal] = useState(false)
+  const [bulkEditField, setBulkEditField] = useState(BULK_EDIT_FIELDS[0].key)
+  const [bulkEditValue, setBulkEditValue] = useState('')
+  const [bulkEditing, setBulkEditing] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -222,60 +224,37 @@ export default function ProfilesPage() {
   }
 
   async function deleteGroup(id) {
-    // Unassign profiles first
     await supabase.from('profiles').update({ group_id: null }).eq('group_id', id)
     await supabase.from('profile_groups').delete().eq('id', id)
     if (selectedGroup === id) setSelectedGroup(null)
     await load()
   }
 
-  function openEditGroup(g) {
-    setGroupForm({ name: g.name, colour: g.colour })
-    setEditingGroupId(g.id)
-    setGroupModal(true)
-  }
+  function openEditGroup(g) { setGroupForm({ name: g.name, colour: g.colour }); setEditingGroupId(g.id); setGroupModal(true) }
 
   // ── Bulk actions ──────────────────────────────────────────────────────────
-  function toggleSelect(id) {
-    setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
-  }
+  function toggleSelect(id) { setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next }) }
 
   function toggleSelectAll() {
-    if (selectedIds.size === filtered.length) {
-      setSelectedIds(new Set())
-    } else {
-      setSelectedIds(new Set(filtered.map(p => p.id)))
-    }
+    if (selectedIds.size === filtered.length) setSelectedIds(new Set())
+    else setSelectedIds(new Set(filtered.map(p => p.id)))
   }
 
   async function bulkDelete() {
-    for (const id of selectedIds) {
-      await supabase.from('profiles').delete().eq('id', id)
-    }
-    setSelectedIds(new Set())
-    setBulkDeleteConfirm(false)
-    await load()
+    for (const id of selectedIds) await supabase.from('profiles').delete().eq('id', id)
+    setSelectedIds(new Set()); setBulkDeleteConfirm(false); await load()
   }
 
   async function bulkAssignGroup() {
-    for (const id of selectedIds) {
-      await supabase.from('profiles').update({ group_id: assigningGroupId }).eq('id', id)
-    }
-    setSelectedIds(new Set())
-    setAssignGroupModal(false)
-    setAssigningGroupId(null)
-    await load()
+    for (const id of selectedIds) await supabase.from('profiles').update({ group_id: assigningGroupId }).eq('id', id)
+    setSelectedIds(new Set()); setAssignGroupModal(false); setAssigningGroupId(null); await load()
   }
 
-  function bulkExport() {
-    const selected = profiles.filter(p => selectedIds.has(p.id))
-    exportCSV(selected)
-  }
+  function bulkExport() { exportCSV(profiles.filter(p => selectedIds.has(p.id))) }
 
   async function loadOpenDrops() {
     const { data } = await supabase.from('drops').select('id, name, site').in('status', ['open', 'restock']).order('created_at', { ascending: false })
-    setOpenDrops(data || [])
-    setDropModal(true)
+    setOpenDrops(data || []); setDropModal(true)
   }
 
   async function bulkSubmitToDrop() {
@@ -284,26 +263,43 @@ export default function ProfilesPage() {
     const selectedProfileObjs = profiles.filter(p => selectedIds.has(p.id))
     const profileIds = selectedProfileObjs.map(p => p.id)
     const profileNames = selectedProfileObjs.map(p => p.profile_name)
-    const payload = {
-      drop_id: selectedDropId,
-      user_id: user.id,
-      profile_ids: JSON.stringify(profileIds),
-      profile_names: JSON.stringify(profileNames),
-      selected_items: JSON.stringify([]),
-      notes: '',
-      submitted_at: new Date().toISOString(),
-    }
+    const payload = { drop_id: selectedDropId, user_id: user.id, profile_ids: JSON.stringify(profileIds), profile_names: JSON.stringify(profileNames), selected_items: JSON.stringify([]), notes: '', submitted_at: new Date().toISOString() }
     await supabase.from('drop_submissions').upsert(payload, { onConflict: 'drop_id,user_id' })
     const drop = openDrops.find(d => d.id === selectedDropId)
-    notifyDiscord('drop_signup', {
-      drop_name: drop?.name,
-      profile_count: profileIds.length,
-      profile_names: profileNames,
-    }, userProfile?.username)
-    setDropModal(false)
-    setSelectedDropId(null)
-    setSelectedIds(new Set())
-    setSubmittingDrop(false)
+    notifyDiscord('drop_signup', { drop_name: drop?.name, profile_count: profileIds.length, profile_names: profileNames }, userProfile?.username)
+    setDropModal(false); setSelectedDropId(null); setSelectedIds(new Set()); setSubmittingDrop(false)
+  }
+
+  // ── Bulk edit ─────────────────────────────────────────────────────────────
+  async function handleBulkEdit() {
+    if (!bulkEditValue.trim() && bulkEditValue !== '') return
+    setBulkEditing(true)
+    const selectedProfiles = profiles.filter(p => selectedIds.has(p.id))
+    for (const p of selectedProfiles) {
+      const updated = { ...p, [bulkEditField]: bulkEditValue }
+      const encrypted = await encryptProfile({ ...updated, user_id: user.id })
+      await supabase.from('profiles').update(encrypted).eq('id', p.id)
+    }
+    await load()
+    setBulkEditModal(false)
+    setBulkEditValue('')
+    setBulkEditing(false)
+  }
+
+  const selectedFieldDef = BULK_EDIT_FIELDS.find(f => f.key === bulkEditField)
+
+  // ── Duplicate profile ─────────────────────────────────────────────────────
+  async function duplicateProfile(p) {
+    const duplicate = {
+      ...p,
+      profile_name: `${p.profile_name} (Copy)`,
+      user_id: user.id,
+    }
+    delete duplicate.id
+    delete duplicate.created_at
+    const encrypted = await encryptProfile(duplicate)
+    await supabase.from('profiles').insert(encrypted)
+    await load()
   }
 
   // ── Spreadsheet inline save ───────────────────────────────────────────────
@@ -378,14 +374,9 @@ export default function ProfilesPage() {
   function openEdit(p) { setForm(p); setEditingId(p.id); setErrors({}); setModalOpen(true) }
   function closeModal() { setModalOpen(false); setEditingId(null); setForm(EMPTY_PROFILE); setErrors({}) }
 
-  async function handleDelete(id) {
-    await supabase.from('profiles').delete().eq('id', id)
-    setDeleteConfirm(null); await load()
-  }
+  async function handleDelete(id) { await supabase.from('profiles').delete().eq('id', id); setDeleteConfirm(null); await load() }
 
-  function toggleReveal(id) {
-    setRevealedCards(prev => { const next=new Set(prev); next.has(id)?next.delete(id):next.add(id); return next })
-  }
+  function toggleReveal(id) { setRevealedCards(prev => { const next=new Set(prev); next.has(id)?next.delete(id):next.add(id); return next }) }
 
   function exportCSV(profilesArr) {
     const rows = profilesArr.map(p => ({
@@ -433,31 +424,30 @@ export default function ProfilesPage() {
   const someSelected = selectedIds.size > 0
 
   const SPREADSHEET_COLS = [
-    { key: 'profile_name',        label: 'Name',        width: 120 },
-    { key: 'email',               label: 'Email',       width: 160 },
-    { key: 'phone',               label: 'Phone',       width: 110 },
-    { key: 'shipping_first_name', label: 'First',       width: 80  },
-    { key: 'shipping_last_name',  label: 'Last',        width: 80  },
-    { key: 'shipping_address',    label: 'Address',     width: 160 },
-    { key: 'shipping_city',       label: 'City',        width: 90  },
-    { key: 'shipping_zip',        label: 'ZIP',         width: 80  },
-    { key: 'card_type',           label: 'Card Type',   width: 90, options: CARD_TYPES },
-    { key: 'card_number',         label: 'Card #',      width: 150, masked: true },
-    { key: 'card_month',          label: 'MM',          width: 50  },
-    { key: 'card_year',           label: 'YY',          width: 50  },
-    { key: 'card_cvv',            label: 'CVV',         width: 60, masked: true },
+    { key: 'profile_name',        label: 'Name',      width: 120 },
+    { key: 'email',               label: 'Email',     width: 160 },
+    { key: 'phone',               label: 'Phone',     width: 110 },
+    { key: 'shipping_first_name', label: 'First',     width: 80  },
+    { key: 'shipping_last_name',  label: 'Last',      width: 80  },
+    { key: 'shipping_address',    label: 'Address',   width: 160 },
+    { key: 'shipping_city',       label: 'City',      width: 90  },
+    { key: 'shipping_zip',        label: 'ZIP',       width: 80  },
+    { key: 'card_type',           label: 'Card Type', width: 90, options: CARD_TYPES },
+    { key: 'card_number',         label: 'Card #',    width: 150, masked: true },
+    { key: 'card_month',          label: 'MM',        width: 50  },
+    { key: 'card_year',           label: 'YY',        width: 50  },
+    { key: 'card_cvv',            label: 'CVV',       width: 60, masked: true },
   ]
 
   return (
     <div className="max-w-7xl mx-auto animate-fade-in">
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
         <div>
           <h1 className="font-display text-3xl text-vault-accent neon-cyan">PROFILES</h1>
           <p className="text-vault-text-dim text-sm font-body mt-0.5">{profiles.length} profile{profiles.length!==1?'s':''} stored</p>
         </div>
         <div className="sm:ml-auto flex gap-2 flex-wrap items-center">
-          {/* View toggle */}
           <div className="flex rounded-lg border border-vault-border overflow-hidden">
             <button onClick={()=>setView('list')} className={`p-2 transition-all ${view==='list'?'bg-vault-accent/20 text-vault-accent':'text-vault-muted hover:text-vault-text'}`} title="List view"><LayoutList className="w-4 h-4"/></button>
             <button onClick={()=>setView('spreadsheet')} className={`p-2 transition-all ${view==='spreadsheet'?'bg-vault-accent/20 text-vault-accent':'text-vault-muted hover:text-vault-text'}`} title="Spreadsheet view"><Table2 className="w-4 h-4"/></button>
@@ -473,25 +463,18 @@ export default function ProfilesPage() {
       </div>
 
       <div className="flex gap-4">
-        {/* ── Groups sidebar ── */}
+        {/* Groups sidebar */}
         <div className="w-44 shrink-0 space-y-1">
           <p className="text-[10px] font-mono text-vault-muted uppercase tracking-widest mb-2 px-1">Groups</p>
-          <button onClick={()=>setSelectedGroup(null)}
-            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-body transition-all ${selectedGroup===null?'bg-vault-accent/10 text-vault-accent border border-vault-accent/30':'text-vault-text-dim hover:bg-vault-border hover:text-vault-text'}`}>
-            <CreditCard className="w-3.5 h-3.5 shrink-0"/>
-            <span className="truncate">All Profiles</span>
-            <span className="ml-auto text-[10px] font-mono opacity-60">{profiles.length}</span>
+          <button onClick={()=>setSelectedGroup(null)} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-body transition-all ${selectedGroup===null?'bg-vault-accent/10 text-vault-accent border border-vault-accent/30':'text-vault-text-dim hover:bg-vault-border hover:text-vault-text'}`}>
+            <CreditCard className="w-3.5 h-3.5 shrink-0"/><span className="truncate">All Profiles</span><span className="ml-auto text-[10px] font-mono opacity-60">{profiles.length}</span>
           </button>
-          <button onClick={()=>setSelectedGroup('ungrouped')}
-            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-body transition-all ${selectedGroup==='ungrouped'?'bg-vault-accent/10 text-vault-accent border border-vault-accent/30':'text-vault-text-dim hover:bg-vault-border hover:text-vault-text'}`}>
-            <Folder className="w-3.5 h-3.5 shrink-0"/>
-            <span className="truncate">Ungrouped</span>
-            <span className="ml-auto text-[10px] font-mono opacity-60">{profiles.filter(p=>!p.group_id).length}</span>
+          <button onClick={()=>setSelectedGroup('ungrouped')} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-body transition-all ${selectedGroup==='ungrouped'?'bg-vault-accent/10 text-vault-accent border border-vault-accent/30':'text-vault-text-dim hover:bg-vault-border hover:text-vault-text'}`}>
+            <Folder className="w-3.5 h-3.5 shrink-0"/><span className="truncate">Ungrouped</span><span className="ml-auto text-[10px] font-mono opacity-60">{profiles.filter(p=>!p.group_id).length}</span>
           </button>
           {groups.map(g => (
             <div key={g.id} className="group relative">
-              <button onClick={()=>setSelectedGroup(g.id)}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-body transition-all ${selectedGroup===g.id?'bg-vault-accent/10 text-vault-accent border border-vault-accent/30':'text-vault-text-dim hover:bg-vault-border hover:text-vault-text'}`}>
+              <button onClick={()=>setSelectedGroup(g.id)} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-body transition-all ${selectedGroup===g.id?'bg-vault-accent/10 text-vault-accent border border-vault-accent/30':'text-vault-text-dim hover:bg-vault-border hover:text-vault-text'}`}>
                 <div className="w-3 h-3 rounded-full shrink-0" style={{ background: g.colour }}/>
                 <span className="truncate flex-1 text-left">{g.name}</span>
                 <span className="text-[10px] font-mono opacity-60">{profiles.filter(p=>p.group_id===g.id).length}</span>
@@ -504,7 +487,7 @@ export default function ProfilesPage() {
           ))}
         </div>
 
-        {/* ── Main content ── */}
+        {/* Main content */}
         <div className="flex-1 min-w-0">
           {/* Search + bulk actions bar */}
           <div className="flex gap-2 mb-3 flex-wrap items-center">
@@ -515,6 +498,7 @@ export default function ProfilesPage() {
             {someSelected && (
               <div className="flex gap-2 flex-wrap animate-fade-in">
                 <span className="text-xs font-mono text-vault-accent self-center">{selectedIds.size} selected</span>
+                <button onClick={()=>{ setBulkEditField(BULK_EDIT_FIELDS[0].key); setBulkEditValue(''); setBulkEditModal(true) }} className="vault-btn-ghost text-xs px-2.5 py-1.5"><Edit3 className="w-3 h-3"/> Edit Field</button>
                 <button onClick={()=>setAssignGroupModal(true)} className="vault-btn-ghost text-xs px-2.5 py-1.5"><Tag className="w-3 h-3"/> Assign Group</button>
                 <button onClick={bulkExport} className="vault-btn-ghost text-xs px-2.5 py-1.5"><Download className="w-3 h-3"/> Export</button>
                 <button onClick={loadOpenDrops} className="vault-btn-ghost text-xs px-2.5 py-1.5"><Send className="w-3 h-3"/> Submit to Drop</button>
@@ -532,7 +516,6 @@ export default function ProfilesPage() {
               <p className="text-vault-text-dim text-sm mt-1">Create your first profile or import a CSV</p>
             </div>
           ) : view === 'spreadsheet' ? (
-            /* ── SPREADSHEET VIEW ── */
             <div className="vault-card p-0 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -556,31 +539,18 @@ export default function ProfilesPage() {
                       const isSel = selectedIds.has(p.id)
                       return (
                         <tr key={p.id} className={`border-b border-vault-border/50 transition-colors ${isSel ? 'bg-vault-accent/5' : i%2===0 ? 'bg-vault-surface' : 'bg-vault-bg'} hover:bg-vault-accent/5`}>
-                          <td className="px-3 py-1">
-                            <button onClick={()=>toggleSelect(p.id)} className="text-vault-muted hover:text-vault-accent transition-colors">
-                              {isSel ? <CheckSquare className="w-4 h-4 text-vault-accent"/> : <Square className="w-4 h-4"/>}
-                            </button>
-                          </td>
-                          <td className="px-2 py-1">
-                            {grp ? <div className="w-2.5 h-2.5 rounded-full mx-auto" style={{ background: grp.colour }} title={grp.name}/> : <div className="w-2.5 h-2.5 rounded-full mx-auto bg-vault-border"/>}
-                          </td>
+                          <td className="px-3 py-1"><button onClick={()=>toggleSelect(p.id)} className="text-vault-muted hover:text-vault-accent transition-colors">{isSel ? <CheckSquare className="w-4 h-4 text-vault-accent"/> : <Square className="w-4 h-4"/>}</button></td>
+                          <td className="px-2 py-1">{grp ? <div className="w-2.5 h-2.5 rounded-full mx-auto" style={{ background: grp.colour }} title={grp.name}/> : <div className="w-2.5 h-2.5 rounded-full mx-auto bg-vault-border"/>}</td>
                           {SPREADSHEET_COLS.map(col => (
                             <td key={col.key} className="py-1" style={{ minWidth: col.width }}>
-                              <EditableCell
-                                value={p[col.key]}
-                                masked={col.masked}
-                                revealed={revealedCards.has(p.id)}
-                                options={col.options}
-                                onSave={val => saveCell(p.id, col.key, val)}
-                              />
+                              <EditableCell value={p[col.key]} masked={col.masked} revealed={revealedCards.has(p.id)} options={col.options} onSave={val => saveCell(p.id, col.key, val)}/>
                             </td>
                           ))}
                           <td className="px-2 py-1">
                             <div className="flex items-center gap-1">
-                              <button onClick={()=>toggleReveal(p.id)} className="p-1 text-vault-muted hover:text-vault-accent rounded transition-all" title={revealedCards.has(p.id)?'Hide card':'Show card'}>
-                                {revealedCards.has(p.id)?<EyeOff className="w-3.5 h-3.5"/>:<Eye className="w-3.5 h-3.5"/>}
-                              </button>
+                              <button onClick={()=>toggleReveal(p.id)} className="p-1 text-vault-muted hover:text-vault-accent rounded transition-all">{revealedCards.has(p.id)?<EyeOff className="w-3.5 h-3.5"/>:<Eye className="w-3.5 h-3.5"/>}</button>
                               <button onClick={()=>openEdit(p)} className="p-1 text-vault-muted hover:text-vault-accent rounded transition-all"><Pencil className="w-3.5 h-3.5"/></button>
+                              <button onClick={()=>duplicateProfile(p)} className="p-1 text-vault-muted hover:text-vault-green rounded transition-all" title="Duplicate"><Copy className="w-3.5 h-3.5"/></button>
                               <button onClick={()=>setDeleteConfirm(p.id)} className="p-1 text-vault-muted hover:text-vault-red rounded transition-all"><Trash2 className="w-3.5 h-3.5"/></button>
                             </div>
                           </td>
@@ -595,9 +565,7 @@ export default function ProfilesPage() {
               </div>
             </div>
           ) : (
-            /* ── LIST VIEW ── */
             <div className="space-y-2">
-              {/* Select all bar */}
               <div className="flex items-center gap-2 px-1">
                 <button onClick={toggleSelectAll} className="flex items-center gap-2 text-xs font-mono text-vault-muted hover:text-vault-text transition-colors">
                   {allSelected ? <CheckSquare className="w-4 h-4 text-vault-accent"/> : <Square className="w-4 h-4"/>}
@@ -634,6 +602,7 @@ export default function ProfilesPage() {
                           {expandedId===p.id ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
                         </button>
                         <button onClick={()=>openEdit(p)} className="p-2 text-vault-muted hover:text-vault-accent rounded-lg hover:bg-vault-accent/10 transition-all"><Pencil className="w-4 h-4"/></button>
+                        <button onClick={()=>duplicateProfile(p)} className="p-2 text-vault-muted hover:text-vault-green rounded-lg hover:bg-vault-green/10 transition-all" title="Duplicate profile"><Copy className="w-4 h-4"/></button>
                         <button onClick={()=>exportCSV([p])} className="p-2 text-vault-muted hover:text-vault-green rounded-lg hover:bg-vault-green/10 transition-all"><Download className="w-4 h-4"/></button>
                         <button onClick={()=>setDeleteConfirm(p.id)} className="p-2 text-vault-muted hover:text-vault-red rounded-lg hover:bg-vault-red/10 transition-all"><Trash2 className="w-4 h-4"/></button>
                       </div>
@@ -652,6 +621,47 @@ export default function ProfilesPage() {
           )}
         </div>
       </div>
+
+      {/* ── Bulk edit modal ── */}
+      {bulkEditModal && createPortal(
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="vault-card max-w-sm w-full animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-display font-bold text-vault-text">Bulk Edit Field</h3>
+                <p className="text-vault-text-dim text-xs font-mono mt-0.5">{selectedIds.size} profile{selectedIds.size!==1?'s':''} will be updated</p>
+              </div>
+              <button onClick={()=>setBulkEditModal(false)}><X className="w-5 h-5 text-vault-muted"/></button>
+            </div>
+            <div className="space-y-4 mb-5">
+              <div>
+                <label className="vault-label">Field to edit</label>
+                <select className="vault-input" value={bulkEditField} onChange={e=>{ setBulkEditField(e.target.value); setBulkEditValue('') }}>
+                  {BULK_EDIT_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="vault-label">New value</label>
+                {selectedFieldDef?.type === 'select' ? (
+                  <select className="vault-input" value={bulkEditValue} onChange={e=>setBulkEditValue(e.target.value)}>
+                    <option value="">— Select —</option>
+                    {selectedFieldDef.options.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <input className="vault-input" type={selectedFieldDef?.type || 'text'} placeholder={`New ${selectedFieldDef?.label || 'value'}...`} value={bulkEditValue} onChange={e=>setBulkEditValue(e.target.value)}/>
+                )}
+                <p className="text-vault-muted text-xs font-mono mt-1">This value will overwrite the existing value on all {selectedIds.size} selected profiles</p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button className="vault-btn-ghost" onClick={()=>setBulkEditModal(false)}>Cancel</button>
+              <button className="vault-btn-primary" onClick={handleBulkEdit} disabled={bulkEditing || !bulkEditValue}>
+                {bulkEditing ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Saving...</> : <><Save className="w-4 h-4"/>Apply to {selectedIds.size} profiles</>}
+              </button>
+            </div>
+          </div>
+        </div>, document.body
+      )}
 
       {/* ── Delete single confirm ── */}
       {deleteConfirm && createPortal(
@@ -691,8 +701,7 @@ export default function ProfilesPage() {
             </div>
             <p className="text-vault-text-dim text-xs font-mono mb-4">{selectedIds.size} profile{selectedIds.size!==1?'s':''} selected</p>
             <div className="space-y-2 mb-4">
-              <button onClick={()=>setAssigningGroupId(null)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-body transition-all ${assigningGroupId===null?'bg-vault-accent/10 border-vault-accent/40 text-vault-accent':'border-vault-border text-vault-text-dim hover:bg-vault-border'}`}>
+              <button onClick={()=>setAssigningGroupId(null)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-body transition-all ${assigningGroupId===null?'bg-vault-accent/10 border-vault-accent/40 text-vault-accent':'border-vault-border text-vault-text-dim hover:bg-vault-border'}`}>
                 <Folder className="w-4 h-4"/> No Group (remove from group)
               </button>
               {groups.map(g => (
@@ -728,9 +737,7 @@ export default function ProfilesPage() {
                 {openDrops.map(d => (
                   <button key={d.id} onClick={()=>setSelectedDropId(d.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-body transition-all ${selectedDropId===d.id?'bg-vault-accent/10 border-vault-accent/40 text-vault-accent':'border-vault-border text-vault-text-dim hover:bg-vault-border'}`}>
-                    <Send className="w-4 h-4 shrink-0"/>
-                    <span className="flex-1 text-left">{d.name}</span>
-                    <span className="text-[10px] font-mono opacity-60">{d.site}</span>
+                    <Send className="w-4 h-4 shrink-0"/><span className="flex-1 text-left">{d.name}</span><span className="text-[10px] font-mono opacity-60">{d.site}</span>
                   </button>
                 ))}
               </div>
@@ -794,7 +801,6 @@ export default function ProfilesPage() {
               <button onClick={closeModal} className="text-vault-muted hover:text-vault-text transition-colors"><X className="w-5 h-5"/></button>
             </div>
             <div className="overflow-y-auto flex-1 pr-1 space-y-6">
-              {/* Group picker */}
               <section>
                 <p className="text-[10px] font-mono text-vault-muted uppercase tracking-widest mb-3">Group</p>
                 <div className="flex gap-2 flex-wrap">
@@ -811,8 +817,6 @@ export default function ProfilesPage() {
                   ))}
                 </div>
               </section>
-
-              {/* Basic */}
               <section>
                 <p className="text-[10px] font-mono text-vault-muted uppercase tracking-widest mb-3">Basic Info</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -825,8 +829,6 @@ export default function ProfilesPage() {
                   </div>
                 </div>
               </section>
-
-              {/* Shipping */}
               <section>
                 <p className="text-[10px] font-mono text-vault-muted uppercase tracking-widest mb-3">Shipping</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -849,8 +851,6 @@ export default function ProfilesPage() {
                   <div><label className="vault-label">Country</label><div className="vault-input bg-vault-border/50 text-vault-text-dim cursor-not-allowed flex items-center"><span className="text-vault-text font-mono">🇬🇧 GB — United Kingdom</span></div></div>
                 </div>
               </section>
-
-              {/* Billing */}
               <section>
                 <div className="flex items-center gap-3 mb-3">
                   <button type="button" onClick={()=>!form.is_virtual_card&&setForm(f=>({...f,billing_same_as_shipping:!f.billing_same_as_shipping}))} disabled={form.is_virtual_card} className={`relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${form.billing_same_as_shipping?'bg-vault-accent':'bg-vault-border'} ${form.is_virtual_card?'opacity-60 cursor-not-allowed':''}`}><span className={`absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${form.billing_same_as_shipping?'translate-x-5':'translate-x-0'}`}/></button>
@@ -868,8 +868,6 @@ export default function ProfilesPage() {
                   </div>
                 )}
               </section>
-
-              {/* Card */}
               <section>
                 <p className="text-[10px] font-mono text-vault-muted uppercase tracking-widest mb-3">Card Details</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -887,8 +885,6 @@ export default function ProfilesPage() {
                   <Field label="CVV" name="card_cvv" required placeholder="123" form={form} errors={errors} setForm={setForm}/>
                 </div>
               </section>
-
-              {/* Settings */}
               <section className="space-y-3">
                 <div className={`rounded-xl p-3 border transition-all ${form.is_virtual_card?'bg-vault-accent/5 border-vault-accent/30':'bg-vault-bg border-vault-border'}`}>
                   <div className="flex items-center gap-3">
