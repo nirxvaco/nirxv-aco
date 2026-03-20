@@ -108,7 +108,7 @@ export default function LeaderboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-display text-3xl text-vault-accent neon-cyan">Leaderboard</h1>
+          <h1 className="font-display text-3xl text-vault-accent neon-cyan">LEADERBOARD</h1>
           <p className="text-vault-text-dim text-sm font-body mt-0.5">Monthly checkout rankings</p>
         </div>
         <div className="flex gap-2 items-center">
